@@ -1,0 +1,1 @@
+{"GET": {"summary": "Get a value.", "group": "string", "since": "1.0.0", "reply_schema": {"type": "string"}}}

@@ -1,0 +1,1 @@
+{"SETROLE": {"summary": "Set a role.", "group": "server", "container": "ACL", "since": "9.2.0", "reply_schema": {"const": "OK"}}}
