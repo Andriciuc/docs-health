@@ -56,6 +56,7 @@ Where you'd rank or recommend differently, and why. Write "None" if there are no
 Things only the user or an SME can answer, which would change the ranking.
 
 Write the report to <scan folder>/optimizations.md if you are allowed to write files.
+Don't build the HTML page; the main session rebuilds it after your report is saved.
 Always return the full report text in your final message as well.
 ```
 

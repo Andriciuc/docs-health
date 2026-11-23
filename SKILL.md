@@ -13,6 +13,8 @@ The skill exists because architecture problems don't show up in individual pages
 
 Analyze only the repos, branches, and local paths the user named in this request. Don't add other branches, versions, sibling repos, or "related" doc sets to widen the picture. If you think another source would change the answer, say so in one line and let the user decide.
 
+A code repo (command definitions, config source, API source) is a source like any other: use it only when the user names it or approves it. Docs builds often declare their code inputs (e.g. the valkey.io website build reads `valkey-io/valkey`). That makes it a good candidate to suggest, not permission to clone it.
+
 If no source is clear ("is our structure OK?" with no repo or path), ask which repo and branch before running anything. Don't pick one from memory, an earlier conversation, or `references/repos.md`. That file only describes layouts; it is not a list of things to scan.
 
 ## Single or compare
@@ -31,6 +33,7 @@ If the user names two sources, it is compare. If it is unclear which side is the
 | nav/tree, where X belongs, merge/split/move pages, landing pages, cross-repo or cross-version consistency, restructure plans | IA | `references/ia.md` |
 | topic types (Diátaxis/DITA/modular), page templates, front matter fields, tags, snippets/variables reuse, single-sourcing HTML+PDF, generating pages from data | Content model | `references/content-model.md` |
 | inventory, freshness, orphans, broken links, duplication, coverage, KPIs, analytics/Search Console joins, prioritizing what to fix | Metrics | `references/metrics.md` |
+| docs vs code: undocumented commands/options/functions, pages for removed items, missing required sections, deprecated items still used, menu coverage of code groups | Coverage | `references/coverage.md` |
 
 Most real asks span two topics. A restructure, for example, needs metrics to justify it and a content model to keep it coherent. Read every reference that applies. `references/repos.md` has known layouts of some Percona and Valkey repos. Read it when the user names one of them, and never use it to choose what to scan.
 
@@ -94,6 +97,15 @@ Data plus a short report. Default report shape:
 
 Keep it short. The reader is a technical writer who knows MkDocs, Diátaxis, and DITA, so don't explain those. Spend the words on what is specific to this doc set. Put the CSVs next to the report so the user can re-slice them.
 
+Save the report as `report.md` (or `<topic>-report.md`) in the output folder, then compile everything in that folder into one HTML page and deliver it with the Markdown and CSVs:
+
+```bash
+python scripts/html_report.py inv/ --title "<Doc set>: architecture review"        # writes inv/report.html
+python scripts/html_report.py cov/ inv/ --out review.html --title "..."            # several folders in one page
+```
+
+The page has every `.md` in the folder rendered (the main report first, then `optimizations.md`, then the rest) and every `.csv`/`.tsv` as a sortable, filterable table. It has no external assets and uses ES5 script only, so it opens offline in any browser. Build it again after step 7 so the optimizer's report is included.
+
 ### 7. Optimization review (separate agent)
 
 After any scan (single or compare), get a second opinion from an agent that didn't produce the scan, so the work isn't grading itself:
@@ -102,7 +114,7 @@ After any scan (single or compare), get a second opinion from an agent that didn
 - **Without one:** do the same review yourself as a separate pass after delivering the report. Follow `agents/optimizer.md` and label the result as a self-review.
 - **Skip it** when the user says so ("no review", "just the numbers") or when the scan was a quick lookup rather than an audit.
 
-Deliver the optimizer's report as written, under its own heading, after yours. If it disagrees with your report, say where in one line and don't argue it away. If the agent can't write files, save its returned text as `optimizations.md` next to the scan output.
+Deliver the optimizer's report as written, under its own heading, after yours. If it disagrees with your report, say where in one line and don't argue it away. If the agent can't write files, save its returned text as `optimizations.md` next to the scan output. Then rerun `scripts/html_report.py` on the folder so the HTML page includes the review.
 
 If the user wants ongoing tracking rather than a one-off, offer a dashboard built from `pages.csv`, or a CI check (see `references/metrics.md` → "Automating").
 
