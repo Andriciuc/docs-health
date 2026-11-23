@@ -1,6 +1,7 @@
 # Reusable workflow: check a Valkey docs tree against the Valkey source.
 # Called from a docs repo (see examples/valkey-docs-coverage.yml). Deterministic: no AI step.
 # Opens one report issue per run, assigned to the owner, who triages the findings.
+# The run artifact holds the CSVs, the Markdown summaries and report.html (all of it in one page).
 name: docs-coverage
 
 on:
@@ -95,6 +96,11 @@ jobs:
             --exclude-glob 'topics/modules-api-ref.md'
           python -I $S/checks/valkey_nav.py docs cov/items_commands.csv --out cov
 
+      - name: Build HTML report
+        run: |
+          python -I skill/scripts/html_report.py cov \
+            --title "Docs coverage: ${{ inputs.docs_repo }}@${{ inputs.docs_ref }} vs ${{ inputs.code_repo }}@${{ inputs.code_ref }}"
+
       - name: Upload data
         uses: actions/upload-artifact@v4
         with:
@@ -109,7 +115,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           {
-            echo "Docs: \`$DOCS\` · Code: \`$CODE\` · [Run and CSV data]($RUN_URL)"
+            echo "Docs: \`$DOCS\` · Code: \`$CODE\` · [Run, HTML report (report.html) and CSV data]($RUN_URL)"
             echo
             echo "Status: **needs triage**. Findings are candidates; confirm each against the source before acting."
             echo

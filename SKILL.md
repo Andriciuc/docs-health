@@ -97,6 +97,15 @@ Data plus a short report. Default report shape:
 
 Keep it short. The reader is a technical writer who knows MkDocs, Diátaxis, and DITA, so don't explain those. Spend the words on what is specific to this doc set. Put the CSVs next to the report so the user can re-slice them.
 
+Save the report as `report.md` (or `<topic>-report.md`) in the output folder, then compile everything in that folder into one HTML page and deliver it with the Markdown and CSVs:
+
+```bash
+python scripts/html_report.py inv/ --title "<Doc set>: architecture review"        # writes inv/report.html
+python scripts/html_report.py cov/ inv/ --out review.html --title "..."            # several folders in one page
+```
+
+The page has every `.md` in the folder rendered (the main report first, then `optimizations.md`, then the rest) and every `.csv`/`.tsv` as a sortable, filterable table. It has no external assets and uses ES5 script only, so it opens offline in any browser. Build it again after step 7 so the optimizer's report is included.
+
 ### 7. Optimization review (separate agent)
 
 After any scan (single or compare), get a second opinion from an agent that didn't produce the scan, so the work isn't grading itself:
@@ -105,7 +114,7 @@ After any scan (single or compare), get a second opinion from an agent that didn
 - **Without one:** do the same review yourself as a separate pass after delivering the report. Follow `agents/optimizer.md` and label the result as a self-review.
 - **Skip it** when the user says so ("no review", "just the numbers") or when the scan was a quick lookup rather than an audit.
 
-Deliver the optimizer's report as written, under its own heading, after yours. If it disagrees with your report, say where in one line and don't argue it away. If the agent can't write files, save its returned text as `optimizations.md` next to the scan output.
+Deliver the optimizer's report as written, under its own heading, after yours. If it disagrees with your report, say where in one line and don't argue it away. If the agent can't write files, save its returned text as `optimizations.md` next to the scan output. Then rerun `scripts/html_report.py` on the folder so the HTML page includes the review.
 
 If the user wants ongoing tracking rather than a one-off, offer a dashboard built from `pages.csv`, or a CI check (see `references/metrics.md` → "Automating").
 

@@ -42,7 +42,11 @@ python $S/coverage.py cov/items_commands.csv cov/items_config.csv --docs valkey-
 python $S/checks/valkey_nav.py valkey-doc cov/items_commands.csv --out cov
 ```
 
-Outputs: `coverage.csv`, `orphans.csv`, `coverage_summary.md`, `nav_coverage.csv`, `nav_summary.md`.
+Outputs: `coverage.csv`, `orphans.csv`, `coverage_summary.md`, `nav_coverage.csv`, `nav_summary.md`. After writing the report (`cov/coverage-report.md`), compile the folder into one page:
+
+```bash
+python $S/html_report.py cov --title "Valkey docs vs code coverage"   # writes cov/report.html
+```
 
 To add module commands, pass more directories to `valkey_commands.py` (e.g. `valkey-json/src/commands`) and drop the matching `--ignore-glob`.
 
@@ -65,7 +69,7 @@ Lead with code-side gaps, because they're the least arguable:
 3. Missing required sections on recent pages.
 4. Website-facing metadata gaps (`groups.json`, menu groups).
 
-For each finding, give the count, `since`, 2–3 example items and the source file. Leave `not_mentioned` config lists out of the main report unless they were asked for.
+For each finding, give the count, `since`, 2–3 example items and the source file. Leave `not_mentioned` config lists out of the main report unless they were asked for. Deliver the Markdown report, the CSVs and the HTML page from `html_report.py`.
 
 ## Adding a source
 

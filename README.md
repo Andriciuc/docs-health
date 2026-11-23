@@ -35,6 +35,7 @@ scripts/
   compare.py              Run inventory.py on two sources and diff them
   join_analytics.py       Join pages.csv with a GA4 / Search Console / Plausible export
   coverage.py             Match code items against a docs tree (generic)
+  html_report.py          Compile a scan folder's Markdown and CSVs into one HTML page
   extract/
     valkey_commands.py    Valkey src/commands/*.json -> items CSV
     valkey_config.py      Valkey src/config.c (+ valkey.conf) -> items CSV
@@ -93,6 +94,7 @@ Claude will:
 2. Open the files behind each finding to verify it. The heuristics produce false positives.
 3. Write a report with a summary, findings, recommendations, a proposed structure (IA asks only), migration steps (only if pages move), and data caveats.
 4. Run the optimization review as a separate agent and attach its report.
+5. Compile the report, the review, the summaries and the CSVs into one HTML page (`report.html`).
 
 Say "no review" or "just the numbers" to skip step 4.
 
@@ -135,6 +137,17 @@ python scripts/compare.py valkey-io/valkey-doc@main /path/to/local/valkey-doc --
 
 A is the reference and B is the side being checked. Each source can be `owner/repo@ref`, a GitHub URL, a local path (working tree as-is), or `/local/path@ref`. Local repos are never modified. The output includes `pages_compare.csv`, `nav_compare.csv`, `issues_compare.csv`, `variables_compare.csv`, `commits_compare.csv`, `metrics_compare.csv` and `compare.md`.
 
+### HTML report
+
+Every scan folder can be compiled into one self-contained HTML page: all Markdown reports rendered (main report first), and every CSV/TSV as a table you can sort by clicking a header and filter by typing.
+
+```bash
+python scripts/html_report.py inv/                                   # writes inv/report.html
+python scripts/html_report.py cov/ inv/ --out review.html --title "Valkey docs review"
+```
+
+The page has no external assets and uses ES5 script only. It opens offline in any browser, including old ones, so you can attach it, email it or publish it as is. Tables over `--max-rows` (default 5000) are cut, with a note pointing to the full CSV. When Claude runs the skill, it builds this page at the end of every scan.
+
 ### Join analytics
 
 ```bash
@@ -170,7 +183,7 @@ Run the tests with `python -m unittest discover -s tests`.
 
 ## Running it as a GitHub workflow
 
-`.github/workflows/docs-coverage.yml` is a reusable workflow. It checks out the scripts, the docs and a sparse copy of the code, runs the tests and the coverage checks, uploads the CSVs as a run artifact, and opens one report issue assigned to the owner. It has no AI step and opens no PRs. A person triages each report.
+`.github/workflows/docs-coverage.yml` is a reusable workflow. It checks out the scripts, the docs and a sparse copy of the code, runs the tests and the coverage checks, builds the HTML page, uploads it with the CSVs as a run artifact, and opens one report issue assigned to the owner. It has no AI step and opens no PRs. A person triages each report.
 
 To use it, copy `examples/valkey-docs-coverage.yml` to `.github/workflows/` in the repo that should receive the issues (e.g. your fork). Then set `docs_repo`, `code_repo` and `assignee`. It runs at 06:17 UTC on the 1st of each month and from the Actions tab (Run workflow), where you can choose the branches.
 
