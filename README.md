@@ -14,6 +14,7 @@ It's built for MkDocs and plain-Markdown doc repos, such as Percona Distribution
 | "Define topic types / front matter / reuse" | Content model: types, templates, front matter schema, snippet and variable strategy |
 | "Which pages matter most?" with a GA4 or Search Console export | Analytics joined to the inventory, a traffic × issue priority list, and dead URLs that need redirects |
 | "Check the docs against the code" (e.g. valkey-doc vs valkey) | Commands and config options with no docs, pages for removed items, missing Reply sections, deprecated names still taught, menu and group gaps |
+| "Check our titles and descriptions" / "SEO pass" | A separate metadata report: whether the build emits titles and descriptions, missing, duplicate and UI-label titles, H1 problems, boilerplate prefixes, and proposed rewrites for the top pages, checked against Google Search Central rules |
 
 Every audit ends with an **optimization review** from a second agent that didn't run the scan. It confirms or disputes findings, lists quick wins, and suggests better scan flags.
 
@@ -27,6 +28,9 @@ references/
   metrics.md              Metric catalog, prioritization, coverage, analytics, CI automation
   compare.md              Two-source comparison workflow
   coverage.md             Docs vs code: running, verifying and reporting coverage
+  google-metadata-rules.md   Google Search Central: titles, rewrites, snippets, robots, canonicals
+  docs-frontmatter-patterns.md  Docs-specific SEO: titles, front matter template, build check, versions, JSON-LD, GEO
+  seo-sources.md          Official specs, platform guides and books behind the SEO rules
   repos.md                Known layouts of some Percona and Valkey doc repos
 agents/
   optimizer.md            Prompt for the independent reviewer agent
@@ -36,6 +40,7 @@ scripts/
   join_analytics.py       Join pages.csv with a GA4 / Search Console / Plausible export
   coverage.py             Match code items against a docs tree (generic)
   html_report.py          Compile a scan folder's Markdown and CSVs into one HTML page
+  metadata_check.py       Titles, descriptions and H1s from front matter (SEO step)
   extract/
     valkey_commands.py    Valkey src/commands/*.json -> items CSV
     valkey_config.py      Valkey src/config.c (+ valkey.conf) -> items CSV
@@ -96,6 +101,7 @@ Claude will:
 3. Write a report with a summary, findings, recommendations, a proposed structure (IA asks only), migration steps (only if pages move), and data caveats.
 4. Run the optimization review as a separate agent and attach its report.
 5. Compile the report, the review, the summaries and the CSVs into one HTML page (`report.html`).
+6. Optionally, run a separate metadata and SEO pass with its own report. It runs when you ask for it, and Claude offers it after an audit.
 
 Say "no review" or "just the numbers" to skip step 4.
 
@@ -137,6 +143,17 @@ python scripts/compare.py valkey-io/valkey-doc@main /path/to/local/valkey-doc --
 ```
 
 A is the reference and B is the side being checked. Each source can be `owner/repo@ref`, a GitHub URL, a local path (working tree as-is), or `/local/path@ref`. Local repos are never modified. The output includes `pages_compare.csv`, `nav_compare.csv`, `issues_compare.csv`, `variables_compare.csv`, `commits_compare.csv`, `metrics_compare.csv` and `compare.md`.
+
+### Metadata and SEO check
+
+```bash
+python scripts/metadata_check.py ../valkey-doc --glob 'topics/*.md' --out meta \
+  --title-template 'Valkey Documentation · {title}'
+```
+
+It reads front matter (`title`, `description`; change the keys with `--title-key`/`--desc-key`) and H1s. Then it writes `metadata.csv` and `metadata_summary.md`, with issues graded `error` (missing or duplicate title), `warn` (missing or duplicate description, one-word title, body H1 next to a front-matter title, several H1s) and `info` (lengths, title/H1 mismatch, shared title prefixes). `--title-template` applies the site's title format, so length checks match the real `<title>`.
+
+It checks sources only. Whether the site emits these fields is a separate check: `references/docs-frontmatter-patterns.md` → "Check the build".
 
 ### HTML report
 
