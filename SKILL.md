@@ -34,6 +34,7 @@ If the user names two sources, it is compare. If it is unclear which side is the
 | topic types (Diátaxis/DITA/modular), page templates, front matter fields, tags, snippets/variables reuse, single-sourcing HTML+PDF, generating pages from data | Content model | `references/content-model.md` |
 | inventory, freshness, orphans, broken links, duplication, coverage, KPIs, analytics/Search Console joins, prioritizing what to fix | Metrics | `references/metrics.md` |
 | docs vs code: undocumented commands/options/functions, pages for removed items, missing required sections, deprecated items still used, menu coverage of code groups | Coverage | `references/coverage.md` |
+| page titles, meta descriptions, H1s, canonicals for versions, structured data (JSON-LD), search snippets, Search Console findings, writing for AI retrieval (GEO) | Metadata & SEO (step 8) | `references/google-metadata-rules.md`, `references/docs-frontmatter-patterns.md`, `references/seo-sources.md` |
 
 Most real asks span two topics. A restructure, for example, needs metrics to justify it and a content model to keep it coherent. Read every reference that applies. `references/repos.md` has known layouts of some Percona and Valkey repos. Read it when the user names one of them, and never use it to choose what to scan.
 
@@ -116,7 +117,28 @@ After any scan (single or compare), get a second opinion from an agent that didn
 
 Deliver the optimizer's report as written, under its own heading, after yours. If it disagrees with your report, say where in one line and don't argue it away. If the agent can't write files, save its returned text as `optimizations.md` next to the scan output. Then rerun `scripts/html_report.py` on the folder so the HTML page includes the review.
 
-If the user wants ongoing tracking rather than a one-off, offer a dashboard built from `pages.csv`, or a CI check (see `references/metrics.md` → "Automating").
+### 8. Metadata & SEO pass (separate, optional)
+
+This is a second pass with its own report. Run it when the user asks about titles, descriptions, search visibility, SEO or GEO. After an audit or compare, offer it in one line instead of running it unasked. Keep it out of the architecture report: the fixes are different, and so is who makes them (often the site template, not the content).
+
+1. **Check the build first.** Read the site's head template and one live page, and confirm which source fields reach `<title>`, `<meta name="description">`, `og:*` and `rel="canonical"`. A broken chain (e.g. the description never emitted) outranks every per-page finding. Procedure: `references/docs-frontmatter-patterns.md` → "Check the build".
+2. **Run the check** on the pages that carry their own metadata, with the rendered title format:
+   ```bash
+   python scripts/metadata_check.py REPO --glob 'topics/*.md' --out meta/ \
+     --title-template '<Site prefix> · {title}'
+   ```
+   It writes `metadata.csv` and `metadata_summary.md`: missing or duplicate titles and descriptions, one-word (UI-label) titles, body H1s next to a front-matter title, title/H1 mismatches, shared title prefixes, and lengths. Lengths are heuristics, because Google sets no limit, so report them as info.
+3. **Apply the rules** in `references/google-metadata-rules.md` (Google Search Central: titles, rewrite triggers, snippets, robots controls, canonicals). Use `references/docs-frontmatter-patterns.md` for docs-specific practice (intent-first titles, version canonicals, front matter template, JSON-LD, GEO). Where a platform guide conflicts with Google, Google wins. Say so when it matters.
+4. **Verify** as in step 2: open the pages behind each issue type. Generated pages (command references) get their titles and descriptions from templates, so judge the template, not each page.
+5. **Report** in `meta/seo-report.md`, using the step 6 shape, plus:
+   - a **Build** section (what reaches the HTML, and what doesn't);
+   - a **Rewrites** table for the 10–20 highest-value pages only (current title or description → proposed, with the reason). Rank by traffic when analytics are available, otherwise by nav prominence. Write intent-first titles and specific, varied descriptions; never keyword lists;
+   - template fixes (site prefix, description fallback, JSON-LD, canonicals) as code snippets, separate from content fixes.
+6. Build the HTML with `scripts/html_report.py meta/`.
+
+Sources: cite the official pages listed in `references/seo-sources.md`. The books there are background for the user. Don't attribute rules or quotes to them.
+
+If the user wants ongoing tracking rather than a one-off, offer a dashboard built from `pages.csv`, or a CI check (see `references/metrics.md` → "Automating"). `metadata_check.py` can run in CI the same way, failing on `error` issues.
 
 ## Analytics
 
@@ -130,6 +152,6 @@ URLs are normalized and versioned prefixes are matched by suffix. Rows with no m
 
 ## Boundaries
 
-- This skill doesn't line-edit wording. If the user wants prose review of specific pages, do that separately.
+- This skill doesn't line-edit wording. If the user wants prose review of specific pages, do that separately. The exception is step 8's rewrites table: proposed titles and descriptions for a ranked set of pages, given as suggestions, not applied.
 - Don't edit the repo unless asked. When asked, work on a branch and keep each change type in its own commit: nav, moves plus redirects, front matter, snippet extraction.
 - Claims about how a tool behaves (a mkdocs plugin option, GA4 field names) change over time. Check the plugin docs or the repo's `requirements.txt` version before relying on one.
