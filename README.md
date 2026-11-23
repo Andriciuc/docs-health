@@ -44,6 +44,7 @@ scripts/
 tests/                    Fixtures and unit tests for the coverage scripts
 .github/workflows/
   docs-coverage.yml       Reusable workflow: run the coverage checks, open a report issue
+  valkey-docs-coverage.yml  Caller for this repo: Andriciuc/valkey-doc vs Andriciuc/valkey, monthly + on demand
 examples/
   valkey-docs-coverage.yml  Caller workflow: monthly + on demand
 ```
@@ -185,7 +186,25 @@ Run the tests with `python -m unittest discover -s tests`.
 
 `.github/workflows/docs-coverage.yml` is a reusable workflow. It checks out the scripts, the docs and a sparse copy of the code, runs the tests and the coverage checks, builds the HTML page, uploads it with the CSVs as a run artifact, and opens one report issue assigned to the owner. It has no AI step and opens no PRs. A person triages each report.
 
-To use it, copy `examples/valkey-docs-coverage.yml` to `.github/workflows/` in the repo that should receive the issues (e.g. your fork). Then set `docs_repo`, `code_repo` and `assignee`. It runs at 06:17 UTC on the 1st of each month and from the Actions tab (Run workflow), where you can choose the branches.
+### Run it from this repo
+
+This repo already calls it: `.github/workflows/valkey-docs-coverage.yml` checks `Andriciuc/valkey-doc@main` against `Andriciuc/valkey@unstable` and opens report issues here, assigned to `Andriciuc`.
+
+- **On demand:** Actions → **Docs coverage** → **Run workflow**. Choose the branches (`docs_ref` for valkey-doc, `code_ref` for valkey), then click **Run workflow**.
+- **Monthly:** 06:17 UTC on the 1st of each month, with the default branches.
+
+Each run produces:
+- an issue titled "Docs coverage report <date>: <docs_ref> vs <code_ref>", assigned to the owner, with the findings marked **needs triage**
+- a `docs-coverage-<run id>` artifact on the run page: `report.html` (everything in one page) plus all CSV and Markdown files, kept for 90 days
+- the same report in the run summary
+
+To check the docs against what has shipped rather than what is in development, set `code_ref` to a release branch (e.g. `9.1`). `unstable` carries commands for the next release, and those show up as undocumented. Your fork only has the release branches it had when it was last synced, so sync it to get newer ones (e.g. `9.2`), or point `code_repo` at `valkey-io/valkey`.
+
+Requirements: Issues enabled on the repo (Settings → General → Features). Both source repos must be public, or readable by the workflow token.
+
+### Run it from another repo
+
+Copy `examples/valkey-docs-coverage.yml` to `.github/workflows/` in the repo that should receive the issues, and set `docs_repo`, `code_repo` and `assignee`. The example calls `Andriciuc/docs-architecture/.github/workflows/docs-coverage.yml@main`. Forks have Issues turned off by default, so turn them on first, or set `open_issue: false` and use the artifact.
 
 Notes:
 - Scheduled workflows run only from the default branch. GitHub disables them in public repos after 60 days with no repo activity.

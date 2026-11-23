@@ -106,7 +106,7 @@ jobs:
         with:
           name: docs-coverage-${{ github.run_id }}
           path: cov/
-          retention-days: 400
+          retention-days: 90
 
       - name: Build report
         env:
