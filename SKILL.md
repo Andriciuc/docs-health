@@ -1,0 +1,123 @@
+---
+name: "docs-architecture"
+description: Documentation architecture for docs-as-code sets (information architecture, content models, docs metrics). Use it to audit or restructure a docs nav or IA, merge/split/move pages, define topic types, front matter schemas, templates or reuse (snippets, variables, single-sourcing), and to measure a doc set (inventory, stale pages, orphans, broken links, nav drift, duplication, coverage, analytics joins, health KPIs). Also use it to compare two doc sets - two branches (unstable vs main), a local checkout vs a GitHub branch, or two repos - to find what is missing, behind or broken on one side. Ends with an optimization report from a separate reviewer agent. Trigger for MkDocs or other Markdown doc repos the user names, even for "is our structure OK", "what pages are stale", "what is missing on this branch" or "give me numbers on the docs". Not for line-editing prose or reviewing one page's wording.
+---
+
+# Docs architecture
+
+Treat a doc set as a dataset. Measure it, design from the data, then change it in a way that keeps the URLs working.
+
+The skill exists because architecture problems don't show up in individual pages. Nav that has drifted between an HTML config and a PDF config, orphaned pages, five copies of the same install paragraph, and a "Get started" section that is four levels deep are all invisible when you read pages one at a time. They are obvious in a table.
+
+## Scope: only what the user named
+
+Analyze only the repos, branches, and local paths the user named in this request. Don't add other branches, versions, sibling repos, or "related" doc sets to widen the picture. If you think another source would change the answer, say so in one line and let the user decide.
+
+If no source is clear ("is our structure OK?" with no repo or path), ask which repo and branch before running anything. Don't pick one from memory, an earlier conversation, or `references/repos.md`. That file only describes layouts; it is not a list of things to scan.
+
+## Single or compare
+
+Decide this first. It sets which script you run.
+
+- **Single**: one repo or branch ("audit valkey-doc", "what's stale in PPG"). Use the workflow below.
+- **Compare**: two sources ("unstable vs main", "my local vs unstable", "18 vs 19", "our docs vs theirs"). Read `references/compare.md` and run `scripts/compare.py`. It runs the inventory on both sides, so the rest of this file still applies to each side.
+
+If the user names two sources, it is compare. If it is unclear which side is the reference, A is the reference (usually upstream, main, or the newer release) and B is the one being checked. Say which way round you took them.
+
+## Pick the topic
+
+| The ask is about… | Topic | Read |
+|---|---|---|
+| nav/tree, where X belongs, merge/split/move pages, landing pages, cross-repo or cross-version consistency, restructure plans | IA | `references/ia.md` |
+| topic types (Diátaxis/DITA/modular), page templates, front matter fields, tags, snippets/variables reuse, single-sourcing HTML+PDF, generating pages from data | Content model | `references/content-model.md` |
+| inventory, freshness, orphans, broken links, duplication, coverage, KPIs, analytics/Search Console joins, prioritizing what to fix | Metrics | `references/metrics.md` |
+
+Most real asks span two topics. A restructure, for example, needs metrics to justify it and a content model to keep it coherent. Read every reference that applies. `references/repos.md` has known layouts of some Percona and Valkey repos. Read it when the user names one of them, and never use it to choose what to scan.
+
+## Workflow
+
+### 1. Inventory before opinions
+
+Run the inventory on the repo before you say anything about structure:
+
+```bash
+git -C REPO fetch --unshallow 2>/dev/null   # ages and commit counts are wrong on shallow clones
+python scripts/inventory.py REPO --out inv/   # auto-detects mkdocs*.yml; INHERIT is resolved
+```
+
+Useful flags: `--config` (repeatable) to choose configs, `--docs-dir` for non-MkDocs repos, `--type-rule 'commands/*.md=reference'` when path conventions define types, and `--bulk-commit-files N` (default 30) and `--ignore-commit-subject REGEX` (e.g. version-bump sweeps) so mass edits don't count as maintenance.
+
+It writes `pages.csv` (one row per page: nav placement per config, URL, words, headings, code blocks, admonitions, tables, links in/out/broken, snippets, variables, front matter keys, topic-type guess + signals, last meaningful commit, age), `nav.csv`, `links.csv`, `duplicates.csv`, `summary.json`, `summary.md`.
+
+Then use pandas or plain Python on the CSVs to answer the actual question. Don't estimate counts in prose. If a number appears in your answer, it came from a file or a command you can name.
+
+### 2. Verify before reporting
+
+The script is heuristic. Before a finding goes in the report, open the files behind it.
+- **Topic types** are guesses from structure (numbered steps, verb headings, tables). Spot-check at least five pages, including some from every type you plan to talk about. If a path convention is reliable, add a `--type-rule` and rerun.
+- **Orphans** can be intentional: pages reached by a direct link, `not_in_nav`, auto-appended snippets, or includes the parser doesn't know about. Grep the config and the repo before calling a page dead.
+- **Broken links**: links built from variables (`{{ ... }}`) and absolute site links are skipped. Say that this case is out of scope rather than claiming zero.
+- **Age** is time since the last non-bulk commit to the file. It is not the time since someone verified the content. Say so whenever freshness drives a recommendation.
+
+### 3. Analyze with the topic reference
+
+Follow the checklist in the relevant reference. Compare against the user's actual constraints, such as who reads it, the release cadence, which configs build which outputs, and what is versioned. Don't compare against an idealized docset.
+
+### 4. Recommend with evidence and trade-offs
+
+Each finding needs:
+- **Evidence**: a count plus 2–3 example paths.
+- **Impact**: who is hurt and how (findability, trust, maintenance cost, build or PDF breakage).
+- **Fix**: concrete. A nav YAML snippet, a mapping row, a field definition, or a script.
+- **Pros / cons** of the fix, including what it costs to maintain. Give alternatives when there is a real choice.
+- **Effort and reversibility**. Moving URLs is expensive and hard to undo. Adding front matter is cheap.
+
+Rank the findings by impact ÷ effort. Lead with the fixes that are cheap and high-impact.
+
+### 5. Changes that move pages
+
+Any move, rename, merge, or delete requires a mapping table plus redirects. It also requires updating the nav in *every* config that lists the page and a post-change inventory diff. The procedure is in `references/ia.md` → "Restructure procedure". Don't hand over a new tree without the migration path.
+
+### 6. Deliver
+
+Data plus a short report. Default report shape:
+
+```markdown
+# <Doc set>: architecture review
+## Summary            ≤5 bullets, each with a number
+## Findings           | # | Finding | Evidence | Impact | Fix | Effort |
+## Recommendations    one subsection each: change, pros, cons, alternative
+## Proposed structure nav YAML (IA asks only), annotated with moves
+## Migration          mapping CSV + redirect_maps + steps (if anything moves)
+## Data & caveats     files produced, commands run, heuristics, shallow history, etc.
+```
+
+Keep it short. The reader is a technical writer who knows MkDocs, Diátaxis, and DITA, so don't explain those. Spend the words on what is specific to this doc set. Put the CSVs next to the report so the user can re-slice them.
+
+### 7. Optimization review (separate agent)
+
+After any scan (single or compare), get a second opinion from an agent that didn't produce the scan, so the work isn't grading itself:
+
+- **With an Agent/Task tool:** spawn one subagent with the prompt in `agents/optimizer.md`. Fill in the scan output folder(s), the source(s), the user's original ask, and your report. Don't pass your reasoning beyond the report. Run it after your report is done. It can run in the background while you deliver your report.
+- **Without one:** do the same review yourself as a separate pass after delivering the report. Follow `agents/optimizer.md` and label the result as a self-review.
+- **Skip it** when the user says so ("no review", "just the numbers") or when the scan was a quick lookup rather than an audit.
+
+Deliver the optimizer's report as written, under its own heading, after yours. If it disagrees with your report, say where in one line and don't argue it away. If the agent can't write files, save its returned text as `optimizations.md` next to the scan output.
+
+If the user wants ongoing tracking rather than a one-off, offer a dashboard built from `pages.csv`, or a CI check (see `references/metrics.md` → "Automating").
+
+## Analytics
+
+When the user has GA4, Search Console, or another export, join it to the inventory:
+
+```bash
+python scripts/join_analytics.py inv/pages.csv export.csv --out inv/joined.csv
+```
+
+URLs are normalized and versioned prefixes are matched by suffix. Rows with no matching page go to `unmatched.csv`. Those are URLs people still hit that no longer exist, so they are redirect candidates. If the user only has traffic data and wants priorities, use the traffic × issue approach in `references/metrics.md`.
+
+## Boundaries
+
+- This skill doesn't line-edit wording. If the user wants prose review of specific pages, do that separately.
+- Don't edit the repo unless asked. When asked, work on a branch and keep each change type in its own commit: nav, moves plus redirects, front matter, snippet extraction.
+- Claims about how a tool behaves (a mkdocs plugin option, GA4 field names) change over time. Check the plugin docs or the repo's `requirements.txt` version before relying on one.
