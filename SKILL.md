@@ -13,6 +13,8 @@ The skill exists because architecture problems don't show up in individual pages
 
 Analyze only the repos, branches, and local paths the user named in this request. Don't add other branches, versions, sibling repos, or "related" doc sets to widen the picture. If you think another source would change the answer, say so in one line and let the user decide.
 
+A code repo (command definitions, config source, API source) is a source like any other: use it only when the user names it or approves it. Docs builds often declare their code inputs (e.g. the valkey.io website build reads `valkey-io/valkey`). That makes it a good candidate to suggest, not permission to clone it.
+
 If no source is clear ("is our structure OK?" with no repo or path), ask which repo and branch before running anything. Don't pick one from memory, an earlier conversation, or `references/repos.md`. That file only describes layouts; it is not a list of things to scan.
 
 ## Single or compare
@@ -31,6 +33,7 @@ If the user names two sources, it is compare. If it is unclear which side is the
 | nav/tree, where X belongs, merge/split/move pages, landing pages, cross-repo or cross-version consistency, restructure plans | IA | `references/ia.md` |
 | topic types (Diátaxis/DITA/modular), page templates, front matter fields, tags, snippets/variables reuse, single-sourcing HTML+PDF, generating pages from data | Content model | `references/content-model.md` |
 | inventory, freshness, orphans, broken links, duplication, coverage, KPIs, analytics/Search Console joins, prioritizing what to fix | Metrics | `references/metrics.md` |
+| docs vs code: undocumented commands/options/functions, pages for removed items, missing required sections, deprecated items still used, menu coverage of code groups | Coverage | `references/coverage.md` |
 
 Most real asks span two topics. A restructure, for example, needs metrics to justify it and a content model to keep it coherent. Read every reference that applies. `references/repos.md` has known layouts of some Percona and Valkey repos. Read it when the user names one of them, and never use it to choose what to scan.
 

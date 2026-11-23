@@ -1,0 +1,29 @@
+# Copy to .github/workflows/docs-coverage.yml in the repo that should receive the report issues
+# (e.g. your fork). Runs monthly and on demand; opens one issue assigned to the owner.
+name: Docs coverage
+
+on:
+  schedule:
+    - cron: "17 6 1 * *"   # 06:17 UTC on the 1st of every month
+  workflow_dispatch:
+    inputs:
+      docs_ref:
+        description: valkey-doc branch
+        default: main
+      code_ref:
+        description: valkey branch or tag (match the release the docs target)
+        default: unstable
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  coverage:
+    uses: Andriciuc/docs-architecture/.github/workflows/docs-coverage.yml@main
+    with:
+      docs_repo: Andriciuc/valkey-doc
+      docs_ref: ${{ inputs.docs_ref || 'main' }}
+      code_repo: Andriciuc/valkey
+      code_ref: ${{ inputs.code_ref || 'unstable' }}
+      assignee: Andriciuc

@@ -26,4 +26,13 @@ Verify against the checkout. These were observed in November 2026 and can change
 - `topics/index.md` is a second, hand-written entry point used by the man pages and `make html`. Compare it against `nav.yml` case-sensitively (`ARM.md`, `RDMA.md`), and measure reachability in hops through `links.csv` rather than direct links only.
 - Some topics start with a UTF-8 BOM (`hashes`, `lists`, `sets`, `strings`, `geospatial`).
 - `topics/modules-api-ref.md` is generated from `src/module.c`. Exclude it from size, age and duplicate findings.
-- Command metadata (arguments, complexity, ACL categories) comes from the server repo's command JSON. Treat that as the data source for coverage checks.
+- Command metadata (arguments, complexity, ACL categories) comes from the server repo's command JSON. Treat that as the data source for coverage checks (`references/coverage.md`).
+- Sentinel subcommands have no pages of their own; they're documented in `topics/sentinel.md` and `sentinel-clients.md`. Expect them as `no_page_mentioned`.
+- Module command pages use prefixes `bf.` (bloom), `json.`, `ft.` (search), `blob.` (large-object). Ignore them in coverage unless the module JSON was extracted.
+- `groups.json` holds command group labels for the website; the template treats `-` and `_` as equal (`sorted-set` = `sorted_set`).
+
+## valkey-io/valkey-io.github.io (website)
+- Zola site. Holds templates, blog, download pages and `_data/` (libraries catalog). No topics or command definitions of its own.
+- Build inputs (README "Building additional content"): `valkey-doc` (topics, command descriptions), `valkey` `src/commands/*.json` (command metadata), and the module repos' `src/commands`. `build/init-commands.sh` maps `<name>.json` to `commands/<name>.md` by file stem.
+- Release posts (`content/blog/*-release/`) and `content/download/versions/*.md` list new features. Use them to confirm whether a command with a recent `since` has shipped.
+- Website checks already in the repo: `build/broken-links.sh` and `build/unconverted-doc-links.sh` (on the built site), `build/validate-libraries.py` (catalog).

@@ -1,0 +1,132 @@
+# Reusable workflow: check a Valkey docs tree against the Valkey source.
+# Called from a docs repo (see examples/valkey-docs-coverage.yml). Deterministic: no AI step.
+# Opens one report issue per run, assigned to the owner, who triages the findings.
+name: docs-coverage
+
+on:
+  workflow_call:
+    inputs:
+      docs_repo:
+        description: Docs repo (owner/name)
+        type: string
+        default: valkey-io/valkey-doc
+      docs_ref:
+        description: Docs branch or tag
+        type: string
+        default: main
+      code_repo:
+        description: Code repo holding src/commands, src/config.c and valkey.conf
+        type: string
+        default: valkey-io/valkey
+      code_ref:
+        description: Code branch or tag. Match it to the release the docs target.
+        type: string
+        default: unstable
+      assignee:
+        description: GitHub user who triages the report
+        type: string
+        required: true
+      open_issue:
+        description: Open a report issue in the calling repo
+        type: boolean
+        default: true
+      skill_repo:
+        type: string
+        default: Andriciuc/docs-architecture
+      skill_ref:
+        type: string
+        default: main
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out scripts
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.skill_repo }}
+          ref: ${{ inputs.skill_ref }}
+          path: skill
+
+      - name: Check out docs
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.docs_repo }}
+          ref: ${{ inputs.docs_ref }}
+          path: docs
+
+      - name: Check out code (sparse)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.code_repo }}
+          ref: ${{ inputs.code_ref }}
+          path: code
+          sparse-checkout: |
+            src/commands
+            src/config.c
+            valkey.conf
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Self-test
+        run: python -m unittest discover -s skill/tests
+
+      - name: Run coverage
+        run: |
+          S=skill/scripts
+          mkdir -p cov
+          python -I $S/extract/valkey_commands.py code/src/commands --out cov/items_commands.csv
+          python -I $S/extract/valkey_config.py code/src/config.c --conf code/valkey.conf --out cov/items_config.csv
+          python -I $S/coverage.py cov/items_commands.csv cov/items_config.csv --docs docs --out cov \
+            --page-glob 'command=commands/*.md' \
+            --ignore-glob 'commands/bf.*' --ignore-glob 'commands/json.*' \
+            --ignore-glob 'commands/ft.*' --ignore-glob 'commands/blob.*' \
+            --mention-glob 'topics/*.md' --mention-glob 'commands/*.md' \
+            --exclude-glob 'topics/modules-api-ref.md'
+          python -I $S/checks/valkey_nav.py docs cov/items_commands.csv --out cov
+
+      - name: Upload data
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-coverage-${{ github.run_id }}
+          path: cov/
+          retention-days: 400
+
+      - name: Build report
+        env:
+          DOCS: ${{ inputs.docs_repo }}@${{ inputs.docs_ref }}
+          CODE: ${{ inputs.code_repo }}@${{ inputs.code_ref }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "Docs: \`$DOCS\` · Code: \`$CODE\` · [Run and CSV data]($RUN_URL)"
+            echo
+            echo "Status: **needs triage**. Findings are candidates; confirm each against the source before acting."
+            echo
+            sed '1d' cov/coverage_summary.md | sed '/^## not_mentioned/,/^## /{/^## not_mentioned/d;/^- config/d}'
+            echo
+            sed '1d' cov/nav_summary.md
+          } > report.md
+          # GitHub issue bodies are capped at 65,536 characters
+          head -c 60000 report.md > body.md
+          cat body.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open report issue
+        if: ${{ inputs.open_issue }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --repo "${{ github.repository }}" \
+            --title "Docs coverage report $(date -u +%Y-%m-%d): ${{ inputs.docs_ref }} vs ${{ inputs.code_ref }}" \
+            --assignee "${{ inputs.assignee }}" \
+            --body-file body.md

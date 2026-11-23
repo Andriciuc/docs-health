@@ -56,6 +56,8 @@ Coverage = documented items ÷ items that should be documented. You need an exte
 
 Build the list as a CSV and match it against page titles, headings, and body text with grep. Report three lists: documented, undocumented, and documented but no longer in the source.
 
+For sources with an extractor in `scripts/extract/` (Valkey commands and config), use `scripts/coverage.py`. See `references/coverage.md`.
+
 ## Analytics sources
 
 - **GA4** "Pages and screens" export: page path + views/users/engagement. GA4 CSV exports start with `#` comment lines, which `join_analytics.py` skips.
