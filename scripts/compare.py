@@ -171,7 +171,7 @@ def main():
     SA = json.load(open(out / "a/summary.json")); SB = json.load(open(out / "b/summary.json"))
     PA = {r["path"]: r for r in rcsv(out / "a/pages.csv")}; PB = {r["path"]: r for r in rcsv(out / "b/pages.csv")}
     da = Path(ra) / SA["docs_dir"]; db = Path(rb) / SB["docs_dir"]
-    txt = lambda d, p: (d / p).read_text(encoding="utf-8", errors="replace")
+    txt = lambda d, p: (d / p).read_text(encoding="utf-8-sig", errors="replace")
 
     # ---------- pages ----------
     rows = []

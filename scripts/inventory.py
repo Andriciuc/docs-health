@@ -319,7 +319,7 @@ def main():
 
     for p in md_files:
         rel = str(p.relative_to(docs_dir)).replace(os.sep, "/")
-        text = p.read_text(encoding="utf-8", errors="replace")
+        text = p.read_text(encoding="utf-8-sig", errors="replace")
         pp = parse_page(text)
         fm = pp["fm"]
         h1 = next((t for l, t in pp["headings"] if l == 1), "")
