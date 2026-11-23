@@ -22,5 +22,8 @@ Verify against the checkout. These were observed in November 2026 and can change
 - Branches (Nov 2026): `main` plus release/topic branches (e.g. `update-docs-9.1.0-rc1`); no `unstable`. `unstable` is the server repo `valkey-io/valkey`. Check with `git ls-remote --heads` before comparing.
 - Not MkDocs. Plain Markdown rendered by the valkey-io.github.io site build. Run the inventory with `--docs-dir .` (auto when no mkdocs config) and `--type-rule 'commands/*.md=reference'`.
 - `commands/*.md` (one page per command), `topics/*.md` (guides and concepts), plus `clients/`, `libraries/`, `modules/` (data-like entries) and `groups.json`/`languages.json`.
-- There is no nav file in this repo, so the IA lives in the website repo and in the topic index. Orphan and depth checks don't apply here. Use inbound links and the topic index instead.
+- Menu: `nav.yml` (added in #513, Nov 2026) plus `modules-nav/*.yml` for module topics. The schema isn't MkDocs (`id`, `title`, `landing`, `topics` as names or `{topic, title, commands}`), so the inventory doesn't parse it and reports orphans as 0 regardless. Check menu coverage with a short script: every `topics/*.md` except `index` listed exactly once, and every `landing` and uppercase command reference resolving to a file.
+- `topics/index.md` is a second, hand-written entry point used by the man pages and `make html`. Compare it against `nav.yml` case-sensitively (`ARM.md`, `RDMA.md`), and measure reachability in hops through `links.csv` rather than direct links only.
+- Some topics start with a UTF-8 BOM (`hashes`, `lists`, `sets`, `strings`, `geospatial`).
+- `topics/modules-api-ref.md` is generated from `src/module.c`. Exclude it from size, age and duplicate findings.
 - Command metadata (arguments, complexity, ACL categories) comes from the server repo's command JSON. Treat that as the data source for coverage checks.
