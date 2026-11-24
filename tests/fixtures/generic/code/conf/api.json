@@ -1,0 +1,4 @@
+[
+  {"endpoint": "list-users", "method": "GET"},
+  {"endpoint": "delete-user", "method": "DELETE"}
+]

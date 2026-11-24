@@ -56,7 +56,7 @@ Coverage = documented items ÷ items that should be documented. You need an exte
 
 Build the list as a CSV and match it against page titles, headings, and body text with grep. Report three lists: documented, undocumented, and documented but no longer in the source.
 
-For sources with an extractor in `scripts/extract/` (Valkey commands and config), use `scripts/coverage.py`. See `references/coverage.md`.
+For anything a regex or a JSON/YAML file can list, write a profile and run `scripts/profile_coverage.py`. See `references/coverage.md`.
 
 ## Analytics sources
 

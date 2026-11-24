@@ -1,0 +1,9 @@
+settings:
+  - name: cache.size
+    since: "1.0"
+  - name: cache.ttl
+    since: "1.2"
+    internal: true
+  - name: cache.mode
+    deprecated: "2.0"
+    use_instead: "`cache.policy`"

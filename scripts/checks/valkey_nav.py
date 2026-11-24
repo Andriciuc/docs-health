@@ -4,7 +4,8 @@
 Usage:
   python valkey_nav.py DOC_REPO COMMAND_ITEMS.csv [--out DIR]
 
-COMMAND_ITEMS.csv comes from scripts/extract/valkey_commands.py. nav.yml rules
+COMMAND_ITEMS.csv is items.csv from profile_coverage.py with the valkey profile
+(this check runs automatically when a profile lists it under checks). nav.yml rules
 (from its header): a "commands" entry is a lowercase group ("list"), an
 uppercase container ("ACL", all its subcommands) or an uppercase command
 name ("BGSAVE"). The most specific entry wins: name > container > group.

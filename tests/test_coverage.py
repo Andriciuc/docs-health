@@ -12,26 +12,19 @@ FIX = Path(__file__).resolve().parent / "fixtures"
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "scripts" / "extract"), str(ROOT / "scripts" / "checks")]
 
 import coverage  # noqa: E402
-import valkey_commands  # noqa: E402
-import valkey_config  # noqa: E402
+import profile_coverage as pc  # noqa: E402
 import valkey_nav  # noqa: E402
 
 
 class CoverageTest(unittest.TestCase):
+    """The built-in Valkey profile, run on the fixtures (same expectations as the
+    old Valkey-only extractors, which the profile replaced)."""
+
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp())
-        cmds = valkey_commands.extract([FIX / "valkey" / "src" / "commands"])
-        valkey_commands.write(cmds, cls.tmp / "cmds.csv")
-        cfg = valkey_config.extract(FIX / "valkey" / "src" / "config.c", FIX / "valkey" / "valkey.conf")
-        with open(cls.tmp / "cfg.csv", "w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, fieldnames=valkey_commands.FIELDS + ["in_conf"])
-            w.writeheader()
-            w.writerows(cfg)
-        cls.cfg = {r["id"]: r for r in cfg}
-        items = coverage.read_items([cls.tmp / "cmds.csv", cls.tmp / "cfg.csv"])
-        rows, cls.orphans = coverage.run(items, FIX / "docs", cls.tmp, ["command=commands/*.md"],
-                                         ["commands/bf.*"], ["topics/*.md", "commands/*.md"], [])
+        profile, items, rows, cls.orphans = pc.run("valkey", FIX / "valkey", FIX / "docs", cls.tmp)
+        cls.cfg = {r["id"]: r for r in items if r["kind"] == "config"}
         cls.rows = {r["id"]: r for r in rows}
 
     def test_command_statuses(self):
@@ -61,7 +54,8 @@ class CoverageTest(unittest.TestCase):
 
     def test_config_mentions(self):
         self.assertEqual(self.rows["databases"]["status"], "mentioned")  # `databases 16`
-        self.assertEqual(self.rows["daemonize"]["status"], "not_mentioned")
+        self.assertEqual(self.rows["daemonize"]["status"], "documented_elsewhere")   # in valkey.conf
+        self.assertEqual(self.rows["undocumented-knob"]["status"], "not_mentioned")   # in neither
 
     def test_orphans(self):
         got = {o["page"]: o["reason"] for o in self.orphans}
@@ -69,7 +63,7 @@ class CoverageTest(unittest.TestCase):
 
     def test_nav(self):
         out = self.tmp / "nav"
-        valkey_nav.main(FIX / "docs", self.tmp / "cmds.csv", out)
+        valkey_nav.main(FIX / "docs", self.tmp / "items.csv", out)
         with open(out / "nav_coverage.csv", encoding="utf-8") as fh:
             nav = {r["id"]: r for r in csv.DictReader(fh)}
         self.assertEqual(nav["get"]["status"], "covered")

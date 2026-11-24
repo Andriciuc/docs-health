@@ -34,6 +34,7 @@ jobs:
         code_ref: ${{ fromJSON(inputs.code_ref && format('["{0}"]', inputs.code_ref) || '["unstable", "latest-tag"]') }}
     uses: ./.github/workflows/docs-coverage.yml
     with:
+      profile: valkey
       docs_repo: valkey-io/valkey-doc
       docs_ref: ${{ inputs.docs_ref || 'main' }}
       code_repo: valkey-io/valkey

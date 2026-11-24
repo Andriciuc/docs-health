@@ -6,7 +6,7 @@ Usage:
                      [--page-glob KIND=GLOB ...] [--ignore-glob GLOB ...]
                      [--mention-glob GLOB ...] [--exclude-glob GLOB ...]
 
-ITEMS.csv: output of an extractor in scripts/extract/ (common format:
+ITEMS.csv: items.csv from profile_coverage.py (common format:
 kind, id, name, aliases, expected_page, require_heading, skip_reason, source_path, ...).
 
 Per item:
@@ -17,6 +17,7 @@ Per item:
   no_page_mentioned  expected_page missing, but the item is mentioned in searched pages
   mentioned        no expected_page; the item appears in code formatting in a searched page
   not_mentioned    no expected_page; no such mention
+  (profiles can add documented_elsewhere: found in a code-side reference file instead)
 
 A mention is a backticked span or a fenced code line that equals the item's
 name (or an alias) or starts with it plus a space (`maxmemory 2mb`,
@@ -111,7 +112,7 @@ def has_heading(path, want):
     return False
 
 
-def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs):
+def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs, adjust=None):
     docs, out = Path(docs), Path(out)
     out.mkdir(parents=True, exist_ok=True)
     pages = page_index(docs, mention_globs, exclude_globs) if mention_globs else {}
@@ -160,6 +161,9 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
             reason = "source_not_scanned" if any(fnmatch.fnmatch(rel, x) for x in ignore_globs) else "no_source"
             orphans.append({"kind": kind, "page": rel, "reason": reason})
 
+    if adjust:
+        rows = [adjust(r) for r in rows]
+
     lead = ["kind", "id", "name", "status", "detail", "mentions", "pages"]
     cols = list(lead)
     for r in rows:  # union: extractors may add their own columns (e.g. in_conf)
@@ -178,10 +182,13 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
     md += [f"| {k} | {s} | {n} |" for (k, s), n in sorted(counts.items())]
     oc = Counter((o["kind"], o["reason"]) for o in orphans)
     md += [f"| {k} | orphan page: {r} | {n} |" for (k, r), n in sorted(oc.items())]
+    cap = 50
     for status in ("undocumented", "missing_heading", "not_mentioned"):
         gap = [r for r in rows if r["status"] == status]
         if gap:
-            md += ["", f"## {status} ({len(gap)})", ""] + [f"- {r['kind']} `{r['name']}` {r['detail']}".rstrip() for r in gap]
+            md += ["", f"## {status} ({len(gap)})", ""] + [f"- {r['kind']} `{r['name']}` {r['detail']}".rstrip() for r in gap[:cap]]
+            if len(gap) > cap:
+                md.append(f"- … {len(gap) - cap} more in coverage.csv")
     dep = [r for r in rows if r["deprecated_in_use"]]
     if dep:
         md += ["", f"## deprecated but still used in docs ({len(dep)})", ""]

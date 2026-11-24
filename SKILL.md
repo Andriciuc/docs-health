@@ -33,7 +33,7 @@ If the user names two sources, it is compare. If it is unclear which side is the
 | nav/tree, where X belongs, merge/split/move pages, landing pages, cross-repo or cross-version consistency, restructure plans | IA | `references/ia.md` |
 | topic types (Diátaxis/DITA/modular), page templates, front matter fields, tags, snippets/variables reuse, single-sourcing HTML+PDF, generating pages from data | Content model | `references/content-model.md` |
 | inventory, freshness, orphans, broken links, duplication, coverage, KPIs, analytics/Search Console joins, prioritizing what to fix | Metrics | `references/metrics.md` |
-| docs vs code: undocumented commands/options/functions, pages for removed items, missing required sections, deprecated items still used, menu coverage of code groups | Coverage | `references/coverage.md` |
+| docs vs code (any project, via a YAML profile; Valkey built in): undocumented commands/options/functions, pages for removed items, missing required sections, deprecated items still used, menu coverage of code groups | Coverage | `references/coverage.md` |
 | page titles, meta descriptions, H1s, canonicals for versions, structured data (JSON-LD), search snippets, Search Console findings, writing for AI retrieval (GEO) | Metadata & SEO (step 8) | `references/google-metadata-rules.md`, `references/docs-frontmatter-patterns.md`, `references/seo-sources.md` |
 
 Most real asks span two topics. A restructure, for example, needs metrics to justify it and a content model to keep it coherent. Read every reference that applies. `references/repos.md` has known layouts of some Percona and Valkey repos. Read it when the user names one of them, and never use it to choose what to scan.

@@ -2,15 +2,15 @@
 
 ## Contents
 - Model
-- Running it (Valkey)
+- Running it
 - Verifying results
 - Reporting
-- Adding a source
+- Writing a profile
 - Limits
 
 ## Model
 
-Code is the list of things that should be documented. Each extractor in `scripts/extract/` turns one code source into rows of a common items CSV:
+Code is the list of things that should be documented. A profile (`profiles/*.yml`, or a file the user provides) tells `scripts/profile_coverage.py` where those items are and what each needs in the docs. It writes them as rows of a common items CSV:
 
 | column | meaning |
 |---|---|
@@ -23,34 +23,27 @@ Code is the list of things that should be documented. Each extractor in `scripts
 | `skip_reason` | set when the code says it isn't meant to be documented (`SYSCMD`, `HIDDEN_CONFIG`) |
 | `deprecated_since`, `replaced_by` | used to flag deprecated items the docs still teach |
 
-`scripts/coverage.py` matches items against a docs tree. It knows nothing about Valkey: anything project-specific belongs in an extractor or in `scripts/checks/`.
+`scripts/coverage.py` matches items against a docs tree. Nothing in the engine is project-specific: project knowledge lives in the profile, and the rare check that doesn't fit the profile format lives in `scripts/checks/` (only `valkey_nav` today), enabled by the profile's `checks` list.
 
-Statuses: `documented`, `missing_heading`, `undocumented`, `no_page_mentioned` (no page of its own but covered in another page), `mentioned`, `not_mentioned`, `skipped`. Pages under `--page-glob` with no matching item go to `orphans.csv` (`no_source`, or `source_not_scanned` when they match `--ignore-glob`).
+Statuses: `documented`, `missing_heading`, `undocumented`, `no_page_mentioned` (no page of its own but covered in another page), `mentioned`, `not_mentioned`, `documented_elsewhere` (found in a code-side reference file the profile marks with `also_in.counts_as_documented`, e.g. `valkey.conf`), `skipped`. Pages under `--page-glob` with no matching item go to `orphans.csv` (`no_source`, or `source_not_scanned` when they match `--ignore-glob`).
 
-## Running it (Valkey)
-
-Inputs: a `valkey` checkout (`src/commands/`, `src/config.c`, `valkey.conf`) and a `valkey-doc` checkout. A sparse clone of `valkey` with `src/commands` and `src/config.c` is enough. Module commands come from the module repos (`valkey-bloom`, `valkey-json`, `valkey-search`, `valkey-large-object`). If you don't extract them, ignore their pages.
+## Running it
 
 ```bash
 S=path/to/docs-health/scripts
-python $S/extract/valkey_commands.py valkey/src/commands --out cov/items_commands.csv
-python $S/extract/valkey_config.py valkey/src/config.c --conf valkey/valkey.conf --out cov/items_config.csv
-python $S/coverage.py cov/items_commands.csv cov/items_config.csv --docs valkey-doc --out cov \
-  --page-glob 'command=commands/*.md' \
-  --ignore-glob 'commands/bf.*' --ignore-glob 'commands/json.*' --ignore-glob 'commands/ft.*' --ignore-glob 'commands/blob.*' \
-  --mention-glob 'topics/*.md' --mention-glob 'commands/*.md' --exclude-glob 'topics/modules-api-ref.md'
-python $S/checks/valkey_nav.py valkey-doc cov/items_commands.csv --out cov
+python $S/profile_coverage.py valkey --code valkey --docs valkey-doc --out cov        # built-in profile
+python $S/profile_coverage.py ./their-profile.yml --code CODE --docs DOCS --out cov    # user's profile
 ```
 
-Outputs: `coverage.csv`, `orphans.csv`, `coverage_summary.md`, `nav_coverage.csv`, `nav_summary.md`. After writing the report (`cov/coverage-report.md`), compile the folder into one page:
+Outputs: `items.csv`, `coverage.csv`, `orphans.csv`, `coverage_summary.md`, plus the output of any `checks` (Valkey: `nav_coverage.csv`, `nav_summary.md`). After writing the report (`cov/coverage-report.md`), compile the folder into one page:
 
 ```bash
-python $S/html_report.py cov --title "Valkey docs vs code coverage"   # writes cov/report.html
+python $S/html_report.py cov --title "Docs vs code coverage"   # writes cov/report.html
 ```
 
-To add module commands, pass more directories to `valkey_commands.py` (e.g. `valkey-json/src/commands`) and drop the matching `--ignore-glob`.
+Use only the code and docs the user named (see SKILL.md, Scope). If the user has no profile for their project, draft one with them (see "Writing a profile"), run it, and show `items.csv` before reporting any gaps.
 
-Branch choice matters. `valkey` `unstable` carries commands for the next release. Compare it with a docs branch that targets the same release, or read `since` before calling a command undocumented. A command with `since` newer than the latest release is "not yet documented", not a gap.
+Valkey specifics: module commands (`bf.`, `json.`, `ft.`, `blob.`) live in the module repos and are ignored as orphans unless a profile extracts them. Branch choice matters: `valkey` `unstable` carries commands for the next release, so compare it with a docs branch that targets the same release, or read `since` before calling a command undocumented. A command with `since` newer than the latest release is "not yet documented", not a gap.
 
 ## Verifying results
 
@@ -71,17 +64,17 @@ Lead with code-side gaps, because they're the least arguable:
 
 For each finding, give the count, `since`, 2–3 example items and the source file. Leave `not_mentioned` config lists out of the main report unless they were asked for. Deliver the Markdown report, the CSVs and the HTML page from `html_report.py`.
 
-## Adding a source
+## Writing a profile
 
-Write `scripts/extract/<project>_<thing>.py` that outputs the common columns (import `FIELDS` from `valkey_commands.py`), plus any extra columns of its own. Examples:
-- PostgreSQL GUCs: `src/backend/utils/misc/postgresql.conf.sample` or `guc_tables.c` → `kind=config`, mention-only.
-- Extension SQL functions: `*.sql` install scripts (`CREATE FUNCTION name(`) → `kind=function`, mention-only.
-- pg_tde GUCs: `DefineCustom*Variable("pg_tde.…"` in the C source.
-
-Add a fixture and a test in `tests/` for every extractor.
+The format is documented in README.md, "Write your own profile". When drafting one for a user:
+1. Find how items are declared in the code: a registration call (`DefineCustomIntVariable("…"`), a table, a file per item, an OpenAPI or JSON list. Anchor the regex on that declaration, not on the bare name.
+2. Pick the docs expectation: its own page (`expect.page`) for reference items with one page each, otherwise a mention (`expect.mention`).
+3. Add `skip_when` for items the code marks as internal, and `also_in` when the code ships its own reference file (a sample config).
+4. Run it, open `items.csv`, and check the count against something independent (a grep, the release notes). Fix the profile before reporting gaps.
+5. Add the profile to the user's repo (e.g. `.github/docs-health/<project>.yml`) and pass it to the workflow as `profile: ./.github/docs-health/<project>.yml`.
 
 ## Limits
 
 - Presence only: a page existing and mentioning the item says nothing about whether the prose is correct.
 - Mentions need code formatting (backticks, fenced code, bold). An item named only in plain prose counts as not mentioned.
-- `config.c` parsing expects one `create*Config("name", alias, FLAGS, …)` call per option. Macros that build names dynamically are missed.
+- Regex profiles find only what's written literally in the code. Names built by macros or at runtime are missed; check `items.csv` against an independent count.

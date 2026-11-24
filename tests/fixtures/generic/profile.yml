@@ -1,0 +1,28 @@
+name: generic-test
+docs:
+  page_globs: { endpoint: reference/*.md }
+  mention_globs: ["guides/*.md", "reference/*.md"]
+items:
+  - kind: setting
+    source: yaml
+    files: [conf/settings.yaml]
+    each: settings
+    id: "{name}"
+    fields: { since: "{since}", deprecated_since: "{deprecated}", replaced_by: "{use_instead}" }
+    skip_when:
+      - { field: internal, equals: "true", reason: internal }
+    expect: { mention: true }
+  - kind: flag
+    source: regex
+    files: [src/*.c]
+    pattern: 'register_flag\("(?P<name>--[a-z-]+)"'
+    expect: { mention: true }
+    also_in: { files: [USAGE.txt], pattern: '^(--[a-z-]+)', column: in_usage }
+  - kind: endpoint
+    source: json
+    files: [conf/api.json]
+    id: "{endpoint}"
+    name: "{method} {endpoint}"
+    expect:
+      page: "reference/{endpoint}.md"
+      heading: { text: Response }

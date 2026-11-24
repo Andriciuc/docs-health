@@ -13,7 +13,7 @@ It's built for MkDocs and plain-Markdown doc repos, such as Percona Distribution
 | "Restructure the nav" / "merge these pages" | Proposed nav YAML, a mapping table, redirect maps, and a migration procedure |
 | "Define topic types / front matter / reuse" | Content model: types, templates, front matter schema, snippet and variable strategy |
 | "Which pages matter most?" with a GA4 or Search Console export | Analytics joined to the inventory, a traffic × issue priority list, and dead URLs that need redirects |
-| "Check the docs against the code" (e.g. valkey-doc vs valkey) | Commands and config options with no docs, pages for removed items, missing Reply sections, deprecated names still taught, menu and group gaps |
+| "Check the docs against the code" (any project, via a profile; Valkey built in) | Commands, settings or other items with no docs, pages for removed items, missing Reply sections, deprecated names still taught, menu and group gaps |
 | "Run this every month" / "compare `unstable` and the latest tag on GitHub" | Reusable GitHub workflows for coverage and compare, with your own pairs: a run summary, a `report.html` artifact, and optionally one issue per pair. See [Running it as a GitHub workflow](#running-it-as-a-github-workflow) |
 | "Check our titles and descriptions" / "SEO pass" | A separate metadata report: whether the build emits titles and descriptions, missing, duplicate and UI-label titles, H1 problems, boilerplate prefixes, and proposed rewrites for the top pages, checked against Google Search Central rules |
 
@@ -39,14 +39,14 @@ scripts/
   inventory.py            Build the per-page dataset for one doc set
   compare.py              Run inventory.py on two sources and diff them
   join_analytics.py       Join pages.csv with a GA4 / Search Console / Plausible export
-  coverage.py             Match code items against a docs tree (generic)
+  coverage.py             Match items against a docs tree (used by profile_coverage.py)
   html_report.py          Compile a scan folder's Markdown and CSVs into one HTML page
   metadata_check.py       Titles, descriptions and H1s from front matter (SEO step)
-  extract/
-    valkey_commands.py    Valkey src/commands/*.json -> items CSV
-    valkey_config.py      Valkey src/config.c (+ valkey.conf) -> items CSV
+  profile_coverage.py     Docs vs code for any project, driven by a YAML profile
   checks/
-    valkey_nav.py         valkey-doc nav.yml / modules-nav / groups.json vs command JSON
+    valkey_nav.py         Optional Valkey-only check: nav.yml / modules-nav / groups.json vs command groups
+profiles/
+  valkey.yml              Built-in profile: valkey commands and config vs valkey-doc
 tests/                    Fixtures, unit tests and security regression tests
 .github/workflows/
   docs-coverage.yml       Reusable: docs vs code, for any pair you define
@@ -76,7 +76,7 @@ To install it for a single project instead, clone it into that project's `.claud
 Build a `.skill` file whose top-level folder is the skill, then upload it from the Skills section of Claude's settings:
 
 ```bash
-git archive --format=zip --prefix=docs-health/ -o docs-health.skill HEAD SKILL.md README.md LICENSE agents references scripts
+git archive --format=zip --prefix=docs-health/ -o docs-health.skill HEAD SKILL.md README.md LICENSE SECURITY.md agents references scripts profiles
 ```
 
 The `.skill` file is a ZIP with the skill folder at the top; the tests, fixtures and workflows stay in the repo. When you change the skill here, upload the file again: the uploaded copy doesn't follow this repo.
@@ -185,26 +185,84 @@ URLs are normalized, and versioned prefixes (`/postgresql/19/apt.html`) match by
 
 ### Check docs against code
 
-Code is the list of things that should be documented. Extractors turn a code source into a common items CSV, and `coverage.py` matches it against a docs tree. Valkey example, with `valkey` and `valkey-doc` checked out side by side:
+Code is the list of things that should be documented. A **profile** (a small YAML file) says where those things are in the code and what each one needs in the docs. `profile_coverage.py` extracts them and checks the docs. Valkey example, with `valkey` and `valkey-doc` checked out side by side:
 
 ```bash
-python scripts/extract/valkey_commands.py ../valkey/src/commands --out cov/items_commands.csv
-python scripts/extract/valkey_config.py ../valkey/src/config.c --conf ../valkey/valkey.conf --out cov/items_config.csv
-python scripts/coverage.py cov/items_commands.csv cov/items_config.csv --docs ../valkey-doc --out cov \
-  --page-glob 'command=commands/*.md' \
-  --ignore-glob 'commands/bf.*' --ignore-glob 'commands/json.*' --ignore-glob 'commands/ft.*' --ignore-glob 'commands/blob.*' \
-  --mention-glob 'topics/*.md' --mention-glob 'commands/*.md' --exclude-glob 'topics/modules-api-ref.md'
-python scripts/checks/valkey_nav.py ../valkey-doc cov/items_commands.csv --out cov
+python scripts/profile_coverage.py valkey --code ../valkey --docs ../valkey-doc --out cov
 ```
+
+`valkey` is the built-in profile (`profiles/valkey.yml`). Pass a path instead to use your own: `python scripts/profile_coverage.py ./my-profile.yml --code … --docs …`.
 
 | File | Contents |
 |---|---|
-| `coverage.csv` | One row per command or config option: `documented`, `missing_heading`, `undocumented`, `no_page_mentioned`, `mentioned`, `not_mentioned`, `skipped`; pages mentioning it; deprecated pages still using it |
-| `orphans.csv` | Doc pages with no source item |
+| `items.csv` | Everything the profile extracted from the code |
+| `coverage.csv` | One row per item: `documented`, `missing_heading`, `undocumented`, `no_page_mentioned`, `mentioned`, `not_mentioned`, `documented_elsewhere`, `skipped`; pages mentioning it; deprecated pages still using it |
+| `orphans.csv` | Doc pages with no matching item (removed or renamed in the code) |
 | `coverage_summary.md` | Counts and gap lists |
-| `nav_coverage.csv` / `nav_summary.md` | Menu coverage per command, unused menu entries, topics not listed, groups missing from `groups.json` |
+| `nav_coverage.csv` / `nav_summary.md` | Valkey profile only: menu coverage, unused menu entries, groups missing from `groups.json` |
 
-A sparse clone of `valkey` (`src/commands`, `src/config.c`, `valkey.conf`) is enough. Match the code branch to the release the docs target: `unstable` carries commands that aren't released yet. To add another project (PostgreSQL GUCs, extension functions), write an extractor in `scripts/extract/` and add a test. See `references/coverage.md`.
+Match the code branch to the release the docs target: development branches carry items that aren't released yet.
+
+### Write your own profile
+
+Any project works if its documentable items can be found by a regex, or read from JSON or YAML files: commands, config options, CLI flags, API endpoints, SQL functions, error codes. Start from `profiles/valkey.yml`. A profile for a C extension with settings, SQL functions and a JSON API list might look like this:
+
+```yaml
+name: myproject
+code:
+  sparse: [src, sql, api.json]          # what the workflow checks out; omit for a full checkout
+docs:
+  page_globs: { endpoint: reference/*.md }      # pages that should each match an item (others = orphans)
+  mention_globs: ["docs/**/*.md"]               # where mentions are searched
+  exclude_globs: ["docs/generated/**"]          # never searched
+items:
+  - kind: setting                       # GUC-style settings declared in C
+    source: regex
+    files: ["src/**/*.c"]
+    pattern: 'DefineCustom\w+Variable\(\s*"(?P<name>myproject\.[a-z_]+)"'
+    expect: { mention: true }
+
+  - kind: function                      # SQL functions from install scripts
+    source: regex
+    files: ["sql/*.sql"]
+    pattern: 'CREATE (?:OR REPLACE )?FUNCTION\s+(?P<name>myproject_\w+)\s*\('
+    flags: [IGNORECASE, MULTILINE]
+    expect: { mention: true }
+
+  - kind: endpoint                      # [{"endpoint": "list-users", "method": "GET", "internal": false}, ...]
+    source: json
+    files: [api.json]
+    id: "{endpoint}"
+    name: "{method} {endpoint}"
+    skip_when:
+      - { field: internal, equals: "true", reason: internal }
+    expect:
+      page: "reference/{endpoint}.md"
+      heading: { text: Response }
+```
+
+Item keys:
+
+| Key | Meaning |
+|---|---|
+| `kind` | Item type, used in reports and `page_globs` (one word) |
+| `source` | `regex`, `json` or `yaml` |
+| `files` | Globs relative to the code folder (`**` allowed, no `..`) |
+| `pattern`, `flags` | `regex` only. Named groups become fields; `name` (or the first group) is the item. Flags: `MULTILINE` (default), `DOTALL`, `IGNORECASE` |
+| `each` | `json`/`yaml` only: dotted path to a list or map of items inside each file. A file whose top level is a list gives one item per entry |
+| `unwrap: single-key` | `json`/`yaml`: the file is `{"NAME": {...}}`, so `NAME` becomes `{key}` |
+| `id`, `name`, `aliases` | Templates. `{field}` is replaced by a field's value; `{stem}`, `{path}` and `{file}` describe the source file. `id` must be unique per kind; `aliases` is `;`-separated |
+| `fields` | Extra columns, as templates. `deprecated_since` and `replaced_by` (with the replacement in backticks) enable the "deprecated but still taught" check |
+| `skip_when` | List of conditions that mark an item as not meant to be documented: `{field, contains}`, `{field, equals}` or `{field, matches}`, plus an optional `reason` |
+| `expect` | `{mention: true}`: must appear in code formatting (backticks, code block or bold) in `mention_globs`. Or `{page: "…{id}…"}`: needs its own page, optionally with `heading: {text, when_field}` |
+| `also_in` | A code-side reference file to look in too (`files`, `pattern` with one group, `column`). With `counts_as_documented: true`, an item found there but not in the docs is `documented_elsewhere` instead of a gap |
+
+Profile-level keys: `name`, `code.sparse`, `docs.page_globs` / `ignore_globs` / `mention_globs` / `exclude_globs`, and `checks` (extra built-in checks; currently only `valkey_nav`).
+
+Tips:
+- Run it locally against a checkout first, and open `items.csv`. If items are missing or wrong, fix the pattern before trusting any gaps.
+- Keep regexes anchored to how items are declared, not just to their name, or comments and tests will match too.
+- A profile can't run code. Templates only substitute fields, and `checks` come from a fixed list. Profiles from untrusted sources are still worth reading before you run them.
 
 Run the tests with `python -m unittest discover -s tests`.
 
@@ -223,7 +281,7 @@ Refs accept a branch, a tag, a commit, or `latest-tag` (the newest `X.Y.Z` / `vX
 |---|---|---|
 | `docs_repo`, `docs_ref` | required, `main` | The docs |
 | `code_repo`, `code_ref` | required, `latest-tag` | The code they document |
-| `profile` | `valkey` | Which extractors to run (only Valkey for now) |
+| `profile` | required | Built-in name (`valkey`) or `./path/to/profile.yml` in the calling repo. See [Write your own profile](#write-your-own-profile) |
 | `name` | derived | Label for titles and artifact names |
 | `open_issue`, `assignee` | `false`, empty | One issue per run in the calling repo |
 | `retention_days` | `30` | Artifact retention (public repos allow up to 90) |
@@ -254,6 +312,7 @@ jobs:
           - { name: docs vs latest release, code_ref: latest-tag }
     uses: Andriciuc/docs-health/.github/workflows/docs-coverage.yml@<tag-or-sha>
     with:
+      profile: valkey                 # or ./.github/docs-health/myproject.yml in your repo
       docs_repo: valkey-io/valkey-doc
       code_repo: valkey-io/valkey
       code_ref: ${{ matrix.code_ref }}
