@@ -14,6 +14,7 @@ It's built for MkDocs and plain-Markdown doc repos, such as Percona Distribution
 | "Define topic types / front matter / reuse" | Content model: types, templates, front matter schema, snippet and variable strategy |
 | "Which pages matter most?" with a GA4 or Search Console export | Analytics joined to the inventory, a traffic × issue priority list, and dead URLs that need redirects |
 | "Check the docs against the code" (e.g. valkey-doc vs valkey) | Commands and config options with no docs, pages for removed items, missing Reply sections, deprecated names still taught, menu and group gaps |
+| "Run this every month" / "compare `unstable` and the latest tag on GitHub" | Reusable GitHub workflows for coverage and compare, with your own pairs: a run summary, a `report.html` artifact, and optionally one issue per pair. See [Running it as a GitHub workflow](#running-it-as-a-github-workflow) |
 | "Check our titles and descriptions" / "SEO pass" | A separate metadata report: whether the build emits titles and descriptions, missing, duplicate and UI-label titles, H1 problems, boilerplate prefixes, and proposed rewrites for the top pages, checked against Google Search Central rules |
 
 Every audit ends with an **optimization review** from a second agent that didn't run the scan. It confirms or disputes findings, lists quick wins, and suggests better scan flags.
@@ -46,12 +47,16 @@ scripts/
     valkey_config.py      Valkey src/config.c (+ valkey.conf) -> items CSV
   checks/
     valkey_nav.py         valkey-doc nav.yml / modules-nav / groups.json vs command JSON
-tests/                    Fixtures and unit tests for the coverage scripts
+tests/                    Fixtures, unit tests and security regression tests
 .github/workflows/
-  docs-coverage.yml       Reusable workflow: run the coverage checks, open a report issue
-  valkey-docs-coverage.yml  Caller for this repo: Andriciuc/valkey-doc vs Andriciuc/valkey, monthly + on demand
+  docs-coverage.yml       Reusable: docs vs code, for any pair you define
+  docs-compare.yml        Reusable: doc set A vs doc set B, for any pair you define
+  valkey-coverage.yml     This repo's runs: valkey-doc vs valkey unstable and vs the latest tag
+  ci.yml                  Tests plus smoke runs of both reusable workflows on every PR
 examples/
-  valkey-docs-coverage.yml  Caller workflow: monthly + on demand
+  docs-coverage.yml       Caller template: matrix of docs-vs-code pairs
+  docs-compare.yml        Caller template: scheduled pairs + a one-off pair from the Run workflow form
+SECURITY.md               What the workflows can access, and how to report a problem
 ```
 
 ## Install
@@ -146,6 +151,8 @@ python scripts/compare.py valkey-io/valkey-doc@main /path/to/local/valkey-doc --
 
 A is the reference and B is the side being checked. Each source can be `owner/repo@ref`, a GitHub URL, a local path (working tree as-is), or `/local/path@ref`. Local repos are never modified. The output includes `pages_compare.csv`, `nav_compare.csv`, `issues_compare.csv`, `variables_compare.csv`, `commits_compare.csv`, `metrics_compare.csv` and `compare.md`.
 
+Refs that start with `-` or contain `..` are refused, and so are repo names outside `owner/repo`. To run comparisons on a schedule, use the `docs-compare` workflow.
+
 ### Metadata and SEO check
 
 ```bash
@@ -203,32 +210,68 @@ Run the tests with `python -m unittest discover -s tests`.
 
 ## Running it as a GitHub workflow
 
-`.github/workflows/docs-coverage.yml` is a reusable workflow. It checks out the scripts, the docs and a sparse copy of the code, runs the tests and the coverage checks, builds the HTML page, uploads it with the CSVs as a run artifact, and opens one report issue assigned to the owner. It has no AI step and opens no PRs. A person triages each report.
+Two reusable workflows, which anyone can call from their own repo. You define the pairs: which docs, which code or which second doc set, and which refs. Both are deterministic, with no AI step and no PRs. Each run produces:
+- the report in the run summary;
+- an artifact with `report.html` (everything in one page) and the CSVs;
+- optionally, one issue per pair for a person to triage.
 
-### Run it from this repo
+Refs accept a branch, a tag, a commit, or `latest-tag` (the newest `X.Y.Z` / `vX.Y.Z` tag, release candidates excluded).
 
-This repo already calls it: `.github/workflows/valkey-docs-coverage.yml` checks `Andriciuc/valkey-doc@main` against `Andriciuc/valkey@unstable` and opens report issues here, assigned to `Andriciuc`.
+### docs-coverage: docs vs code
 
-- **On demand:** Actions → **Docs coverage** → **Run workflow**. Choose the branches (`docs_ref` for valkey-doc, `code_ref` for valkey), then click **Run workflow**.
-- **Monthly:** 06:17 UTC on the 1st of each month, with the default branches.
+| Input | Default | Meaning |
+|---|---|---|
+| `docs_repo`, `docs_ref` | required, `main` | The docs |
+| `code_repo`, `code_ref` | required, `latest-tag` | The code they document |
+| `profile` | `valkey` | Which extractors to run (only Valkey for now) |
+| `name` | derived | Label for titles and artifact names |
+| `open_issue`, `assignee` | `false`, empty | One issue per run in the calling repo |
+| `retention_days` | `30` | Artifact retention (public repos allow up to 90) |
+| `skill_repo`, `skill_ref` | `Andriciuc/docs-health`, `main` | Where the scripts come from; pin `skill_ref` |
 
-Each run produces:
-- an issue titled "Docs coverage report <date>: <docs_ref> vs <code_ref>", assigned to the owner, with the findings marked **needs triage**
-- a `docs-coverage-<run id>` artifact on the run page: `report.html` (everything in one page) plus all CSV and Markdown files, kept for 90 days
-- the same report in the run summary
+### docs-compare: doc set A vs doc set B
 
-To check the docs against what has shipped rather than what is in development, set `code_ref` to a release branch (e.g. `9.1`). `unstable` carries commands for the next release, and those show up as undocumented. Your fork only has the release branches it had when it was last synced, so sync it to get newer ones (e.g. `9.2`), or point `code_repo` at `valkey-io/valkey`.
+| Input | Default | Meaning |
+|---|---|---|
+| `a_repo`, `a_ref` | required, `main` | Reference side |
+| `b_repo`, `b_ref` | `a_repo`, required | Side being checked: another branch, tag, fork or repo |
+| `inventory_args` | empty | Extra `inventory.py` arguments for both sides, e.g. `--docs-dir . --type-rule 'commands/*.md=reference'` |
+| `history` | `true` | Full git history, so ages and one-sided commits are reported (slower) |
+| `name`, `open_issue`, `assignee`, `retention_days`, `skill_repo`, `skill_ref` | | As above |
 
-Requirements: Issues enabled on the repo (Settings → General → Features). Both source repos must be public, or readable by the workflow token.
+### Use it from your repo
 
-### Run it from another repo
+Copy `examples/docs-coverage.yml` or `examples/docs-compare.yml` into `.github/workflows/` and edit the matrix: one entry per pair. For example, docs against `unstable` and against `latest-tag`:
 
-Copy `examples/valkey-docs-coverage.yml` to `.github/workflows/` in the repo that should receive the issues, and set `docs_repo`, `code_repo` and `assignee`. The example calls `Andriciuc/docs-health/.github/workflows/docs-coverage.yml@main`. Forks have Issues turned off by default, so turn them on first, or set `open_issue: false` and use the artifact.
+```yaml
+jobs:
+  coverage:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: docs vs unstable,       code_ref: unstable }
+          - { name: docs vs latest release, code_ref: latest-tag }
+    uses: Andriciuc/docs-health/.github/workflows/docs-coverage.yml@<tag-or-sha>
+    with:
+      docs_repo: valkey-io/valkey-doc
+      code_repo: valkey-io/valkey
+      code_ref: ${{ matrix.code_ref }}
+      name: ${{ matrix.name }}
+      skill_ref: <same tag-or-sha>
+```
 
 Notes:
-- Scheduled workflows run only from the default branch. GitHub disables them in public repos after 60 days with no repo activity.
-- The caller needs `issues: write`. Set `open_issue: false` to get only the run summary and artifact.
-- Pin `skill_ref` to a tag or commit if you don't want script changes to reach running workflows automatically.
+- Pin `@<tag-or-sha>` and `skill_ref` to the same value. `@main` means every change here reaches your runs without review.
+- The calling workflow needs `contents: read`, plus `issues: write` only if `open_issue` is true.
+- Forks have Issues off by default, so turn them on or leave `open_issue: false`.
+- Organizations may only allow actions from their own repos. An admin has to allow `Andriciuc/docs-health`.
+- Scheduled workflows run from the default branch only. GitHub pauses them in public repos after 60 days without repo activity.
+- Private repos as sources: the default token can only read the calling repo. Other private repos aren't supported yet.
+
+### This repo's runs
+
+`.github/workflows/valkey-coverage.yml` checks `valkey-io/valkey-doc@main` against `valkey-io/valkey@unstable` and `@latest-tag` on the 1st of each month, and opens one issue per pair assigned to the owner. Run it on demand from Actions → **Valkey docs coverage** → **Run workflow**: leave `code_ref` empty for both presets, or enter any branch, tag or `latest-tag`. It only reads the valkey-io repos.
 
 ## Known limits
 
@@ -239,9 +282,13 @@ Notes:
 - **Nav** parsing in `inventory.py` is MkDocs-only. For valkey-doc's `nav.yml`, use `scripts/checks/valkey_nav.py`.
 - **Coverage** checks presence, not correctness: a page that exists and mentions an item may still be wrong. Mentions count only in code formatting (backticks, fenced code, bold).
 
+## Security
+
+The workflows read public repos, run the scripts in this repo, and only write when `open_issue` is on, and then only one issue in the calling repo. Details and reporting: [SECURITY.md](SECURITY.md).
+
 ## Contributing
 
-Issues and PRs are welcome. Keep each change type in its own commit (scripts, references, skill instructions). For script changes, include before/after numbers from a real repo.
+Issues and PRs are welcome. Every PR runs CI (`ci.yml`): the unit and security tests, plus a smoke run of both reusable workflows against valkey-doc and valkey. Keep each change type in its own commit (scripts, references, skill instructions). For script changes, include before/after numbers from a real repo.
 
 ## License
 

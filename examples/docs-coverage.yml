@@ -1,0 +1,34 @@
+# Copy to .github/workflows/ in the repo that should hold the results.
+# Define your own pairs in the matrix: each entry is one docs-vs-code check.
+# code_ref accepts a branch, a tag, a commit, or "latest-tag" (newest X.Y.Z tag).
+name: Docs coverage
+
+on:
+  schedule:
+    - cron: "17 6 1 * *"   # 06:17 UTC on the 1st of every month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write          # only needed when open_issue is true
+
+jobs:
+  coverage:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: docs vs unstable
+            code_ref: unstable
+          - name: docs vs latest release
+            code_ref: latest-tag
+    uses: Andriciuc/docs-health/.github/workflows/docs-coverage.yml@main   # pin to a tag or commit SHA
+    with:
+      docs_repo: valkey-io/valkey-doc
+      docs_ref: main
+      code_repo: valkey-io/valkey
+      code_ref: ${{ matrix.code_ref }}
+      name: ${{ matrix.name }}
+      open_issue: false    # true opens one issue per pair in this repo
+      assignee: ""         # your GitHub login, if open_issue is true
+      skill_ref: main      # keep in step with the @ref above

@@ -1,0 +1,43 @@
+# This repo's own coverage runs: valkey-doc vs valkey, two pairs.
+#   1. docs vs valkey unstable      (what's coming that isn't documented yet)
+#   2. docs vs latest valkey tag    (what shipped without docs)
+# Monthly, plus on demand from Actions > Valkey docs coverage > Run workflow,
+# where you can pick any code ref (branch, tag or "latest-tag") instead of the two presets.
+# Read-only on the valkey-io repos; report issues open here, assigned to the owner.
+name: Valkey docs coverage
+
+on:
+  schedule:
+    - cron: "17 6 1 * *"   # 06:17 UTC on the 1st of every month
+  workflow_dispatch:
+    inputs:
+      docs_ref:
+        description: valkey-doc branch, tag or commit
+        default: main
+      code_ref:
+        description: valkey ref to check against (empty = both presets unstable + latest-tag)
+        default: ""
+      open_issue:
+        description: Open report issues
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  coverage:
+    strategy:
+      fail-fast: false
+      matrix:
+        code_ref: ${{ fromJSON(inputs.code_ref && format('["{0}"]', inputs.code_ref) || '["unstable", "latest-tag"]') }}
+    uses: ./.github/workflows/docs-coverage.yml
+    with:
+      docs_repo: valkey-io/valkey-doc
+      docs_ref: ${{ inputs.docs_ref || 'main' }}
+      code_repo: valkey-io/valkey
+      code_ref: ${{ matrix.code_ref }}
+      open_issue: ${{ github.event_name == 'schedule' || inputs.open_issue }}
+      assignee: Andriciuc
+      skill_ref: ${{ github.sha }}

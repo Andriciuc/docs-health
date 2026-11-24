@@ -1,0 +1,215 @@
+# Reusable workflow: compare two doc sets, A (reference) vs B (checked).
+# Any repos, any refs: two branches of one repo, a fork vs upstream, a release
+# tag vs main. Callers define their own pairs; see examples/.
+# Results: run summary, an artifact with report.html + CSVs, and (optional) one
+# issue per run for a person to triage. No AI step, no PRs.
+#
+# Security: inputs reach shell steps only through env vars; extra inventory
+# arguments are split with shlex and passed as an argv list (no shell); actions
+# are pinned to commit SHAs; checkouts don't persist credentials; the analysis job
+# is read-only; the optional issue job inherits the caller's grant (needs issues: write).
+name: docs-compare
+
+on:
+  workflow_call:
+    inputs:
+      a_repo:
+        description: Reference side (owner/name)
+        type: string
+        required: true
+      a_ref:
+        description: Reference branch, tag or commit, or "latest-tag"
+        type: string
+        default: main
+      b_repo:
+        description: Checked side (owner/name); empty = same as a_repo
+        type: string
+        default: ""
+      b_ref:
+        description: Checked branch, tag or commit, or "latest-tag"
+        type: string
+        required: true
+      inventory_args:
+        description: Extra inventory.py arguments for both sides, e.g. "--docs-dir . --type-rule 'commands/*.md=reference'"
+        type: string
+        default: ""
+      history:
+        description: Fetch full history so page ages and commits-only-on-one-side are reported (slower)
+        type: boolean
+        default: true
+      open_issue:
+        type: boolean
+        default: false
+      assignee:
+        type: string
+        default: ""
+      name:
+        description: Short label for this pair, used in titles and artifact names
+        type: string
+        default: ""
+      retention_days:
+        type: number
+        default: 30
+      skill_repo:
+        type: string
+        default: Andriciuc/docs-health
+      skill_ref:
+        description: Pin to a tag or commit for reproducible runs
+        type: string
+        default: main
+
+# No top-level permissions: the caller's grant is the ceiling. Jobs narrow it.
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      title: ${{ steps.meta.outputs.title }}
+      artifact: ${{ steps.meta.outputs.artifact }}
+    env:
+      A_REPO: ${{ inputs.a_repo }}
+      A_REF_IN: ${{ inputs.a_ref }}
+      B_REPO: ${{ inputs.b_repo || inputs.a_repo }}
+      B_REF_IN: ${{ inputs.b_ref }}
+      INV_ARGS: ${{ inputs.inventory_args }}
+      PAIR_NAME: ${{ inputs.name }}
+      ASSIGNEE: ${{ inputs.assignee }}
+    steps:
+      - name: Validate inputs
+        run: |
+          repo_re='^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$'
+          ref_re='^[A-Za-z0-9._/+-]{1,200}$'
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$A_REPO" =~ $repo_re ]] || fail "a_repo must be owner/name"
+          [[ "$B_REPO" =~ $repo_re ]] || fail "b_repo must be owner/name"
+          for r in "$A_REF_IN" "$B_REF_IN"; do
+            [[ "$r" =~ $ref_re && "$r" != -* && "$r" != *..* ]] || fail "unsafe ref: $r"
+          done
+          [[ -z "$ASSIGNEE" || "$ASSIGNEE" =~ ^[A-Za-z0-9-]{1,39}$ ]] || fail "assignee must be a GitHub login"
+          [[ "$A_REPO@$A_REF_IN" != "$B_REPO@$B_REF_IN" ]] || fail "A and B are the same"
+
+      - name: Resolve refs
+        id: ref
+        run: |
+          resolve() {
+            local repo="$1" ref="$2"
+            if [[ "$ref" == "latest-tag" ]]; then
+              ref=$(git ls-remote --tags --refs "https://github.com/${repo}.git" \
+                    | sed 's#.*refs/tags/##' | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+              [[ -n "$ref" ]] || { echo "::error::no X.Y.Z tags in $repo"; exit 1; }
+            fi
+            printf '%s' "$ref"
+          }
+          echo "a=$(resolve "$A_REPO" "$A_REF_IN")" >> "$GITHUB_OUTPUT"
+          echo "b=$(resolve "$B_REPO" "$B_REF_IN")" >> "$GITHUB_OUTPUT"
+
+      - name: Check out scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.skill_repo }}
+          ref: ${{ inputs.skill_ref }}
+          path: skill
+          persist-credentials: false
+
+      - name: Check out A
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.a_repo }}
+          ref: ${{ steps.ref.outputs.a }}
+          path: src/a
+          fetch-depth: ${{ inputs.history && 0 || 1 }}
+          persist-credentials: false
+
+      - name: Check out B
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.b_repo || inputs.a_repo }}
+          ref: ${{ steps.ref.outputs.b }}
+          path: src/b
+          fetch-depth: ${{ inputs.history && 0 || 1 }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check "pyyaml==6.0.2"
+
+      - name: Self-test
+        run: python -m unittest discover -s skill/tests
+
+      - name: Name this run
+        id: meta
+        env:
+          A_REF: ${{ steps.ref.outputs.a }}
+          B_REF: ${{ steps.ref.outputs.b }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          echo "LABEL_A=${A_REPO}@${A_REF}" >> "$GITHUB_ENV"
+          echo "LABEL_B=${B_REPO}@${B_REF}" >> "$GITHUB_ENV"
+          label="${PAIR_NAME:-${A_REPO#*/}@${A_REF} vs ${B_REPO#*/}@${B_REF}}"
+          slug=$(printf '%s' "$label" | tr -c 'A-Za-z0-9._-' '-' | tr -s '-' | cut -c1-60)
+          echo "LABEL=$label" >> "$GITHUB_ENV"
+          echo "title=Docs compare $(date -u +%Y-%m-%d): $label" >> "$GITHUB_OUTPUT"
+          echo "artifact=docs-compare-${slug}-${RUN_ID}-${RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Run compare
+        run: |
+          python -I - <<'PY'
+          import os, shlex, subprocess, sys
+          extra = shlex.split(os.environ.get("INV_ARGS", ""))
+          cmd = [sys.executable, "-I", "skill/scripts/compare.py", "src/a", "src/b", "--out", "cmp",
+                 "--work", ".docs-compare", "--label-a", os.environ["LABEL_A"], "--label-b", os.environ["LABEL_B"]]
+          if extra:
+              cmd += ["--"] + extra
+          sys.exit(subprocess.run(cmd).returncode)
+          PY
+
+      - name: Build reports
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python -I skill/scripts/html_report.py cmp --title "Docs compare: $LABEL"
+          {
+            echo "A (reference): \`${LABEL_A}\` · B (checked): \`${LABEL_B}\` · [Run, report.html and CSV data](${RUN_URL})"
+            echo
+            echo "Status: **needs triage**. Findings are candidates; confirm each against the source before acting."
+            echo
+            sed '1d' cmp/compare.md
+          } > cmp/issue_body.md
+          head -c 60000 cmp/issue_body.md > cmp/issue_body.trimmed.md
+          mv cmp/issue_body.trimmed.md cmp/issue_body.md
+          cat cmp/issue_body.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload data
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.meta.outputs.artifact }}
+          path: cmp/
+          retention-days: ${{ inputs.retention_days }}
+
+  issue:
+    needs: compare
+    if: ${{ inputs.open_issue }}
+    runs-on: ubuntu-latest
+    # No permissions key: this job inherits what the caller grants, so callers that
+    # don't open issues never have to grant issues: write. Callers that do must.
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.compare.outputs.artifact }}
+          path: cmp
+      - name: Open report issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TITLE: ${{ needs.compare.outputs.title }}
+          ASSIGNEE: ${{ inputs.assignee }}
+        run: |
+          args=(--repo "$REPO" --title "$TITLE" --body-file cmp/issue_body.md)
+          [[ -n "$ASSIGNEE" ]] && args+=(--assignee "$ASSIGNEE")
+          gh issue create "${args[@]}"

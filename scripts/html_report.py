@@ -29,6 +29,18 @@ from pathlib import Path
 
 # ---------- Markdown (subset) ----------
 
+SAFE_URL = re.compile(r"^(https?://|mailto:|#|/|\./|\.\./|[A-Za-z0-9_.-]+(/|$|#|\.))", re.I)
+
+
+def link(m):
+    """Render [text](url) only for http(s), mailto, anchors and relative paths; anything else
+    (javascript:, data:, ...) stays as plain text. The URL is attribute-escaped."""
+    url = html.unescape(m.group(2))
+    if not SAFE_URL.match(url) or ":" in url.split("/")[0] and not url.lower().startswith(("http://", "https://", "mailto:")):
+        return m.group(0)
+    return '<a href="%s" rel="noopener noreferrer">%s</a>' % (html.escape(url, quote=True), m.group(1))
+
+
 def inline(text):
     # Code spans first, behind placeholders, so bold/italic/links can wrap them.
     codes = []
@@ -38,7 +50,7 @@ def inline(text):
         return "\x00%d\x00" % (len(codes) - 1)
     s = re.sub(r"`([^`]*)`", keep, text)
     s = html.escape(s, quote=False)
-    s = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", lambda m: '<a href="%s">%s</a>' % (m.group(2), m.group(1)), s)
+    s = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", link, s)
     s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
     s = re.sub(r"(?<![\w*])\*([^*\n]+)\*(?![\w*])", r"<em>\1</em>", s)
     return re.sub("\x00(\\d+)\x00", lambda m: codes[int(m.group(1))], s)

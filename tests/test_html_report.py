@@ -21,7 +21,7 @@ class HtmlReportTest(unittest.TestCase):
         # main report first, then other markdown
         self.assertLess(page.index("Main report"), page.index("Summary"))
         self.assertIn("<strong>11 pages lack <code>## Reply</code></strong>", page)
-        self.assertIn('<a href="https://example.com">link</a>', page)
+        self.assertIn('<a href="https://example.com" rel="noopener noreferrer">link</a>', page)
         self.assertIn("code &lt;b&gt;", page)            # code is escaped
         self.assertIn("<td>&lt;10&gt;</td>", page)        # CSV cells are escaped
         self.assertIn("data.csv (2)", page)

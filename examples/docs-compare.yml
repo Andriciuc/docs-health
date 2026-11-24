@@ -1,0 +1,53 @@
+# Copy to .github/workflows/ in the repo that should hold the results.
+# Define your own pairs: A is the reference, B is the side being checked.
+# Refs accept a branch, a tag, a commit, or "latest-tag". b_repo defaults to a_repo.
+name: Docs compare
+
+on:
+  schedule:
+    - cron: "41 6 1 * *"   # 06:41 UTC on the 1st of every month
+  workflow_dispatch:
+    inputs:
+      a_ref:
+        description: Reference ref
+        default: main
+      b_ref:
+        description: Checked ref
+        required: true
+
+permissions:
+  contents: read
+  issues: write          # only needed when open_issue is true
+
+jobs:
+  # One-off pair from the Run workflow form.
+  custom:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    uses: Andriciuc/docs-health/.github/workflows/docs-compare.yml@main   # pin to a tag or commit SHA
+    with:
+      a_repo: valkey-io/valkey-doc
+      a_ref: ${{ inputs.a_ref }}
+      b_ref: ${{ inputs.b_ref }}
+      inventory_args: "--docs-dir . --type-rule 'commands/*.md=reference'"
+
+  # Scheduled pairs.
+  scheduled:
+    if: ${{ github.event_name == 'schedule' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: my fork vs upstream
+            a_repo: valkey-io/valkey-doc
+            a_ref: main
+            b_repo: your-login/valkey-doc
+            b_ref: main
+    uses: Andriciuc/docs-health/.github/workflows/docs-compare.yml@main
+    with:
+      a_repo: ${{ matrix.a_repo }}
+      a_ref: ${{ matrix.a_ref }}
+      b_repo: ${{ matrix.b_repo }}
+      b_ref: ${{ matrix.b_ref }}
+      name: ${{ matrix.name }}
+      inventory_args: "--docs-dir . --type-rule 'commands/*.md=reference'"
+      open_issue: false

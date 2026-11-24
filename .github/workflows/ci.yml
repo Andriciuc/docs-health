@@ -1,0 +1,51 @@
+# Tests the scripts and both reusable workflows on every PR and push to main.
+# Smoke runs open no issues and keep artifacts for 1 day.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check "pyyaml==6.0.2"
+      - run: python -m unittest discover -s tests -v
+
+  coverage-smoke:
+    needs: unit
+    uses: ./.github/workflows/docs-coverage.yml
+    with:
+      docs_repo: valkey-io/valkey-doc
+      code_repo: valkey-io/valkey
+      code_ref: latest-tag
+      name: ci-coverage
+      retention_days: 1
+      skill_repo: ${{ github.repository }}
+      skill_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  compare-smoke:
+    needs: unit
+    uses: ./.github/workflows/docs-compare.yml
+    with:
+      a_repo: valkey-io/valkey-doc
+      a_ref: main
+      b_repo: Andriciuc/valkey-doc
+      b_ref: main
+      inventory_args: "--docs-dir . --type-rule 'commands/*.md=reference'"
+      history: false
+      name: ci-compare
+      retention_days: 1
+      skill_repo: ${{ github.repository }}
+      skill_ref: ${{ github.event.pull_request.head.sha || github.sha }}
