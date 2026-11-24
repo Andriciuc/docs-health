@@ -3,7 +3,9 @@
 # Deterministic: no AI step, no PRs. Results: run summary, an artifact with
 # report.html + CSVs, and (optional) one issue per run for a person to triage.
 #
-# Profiles: "valkey" (src/commands/*.json, src/config.c, valkey.conf vs valkey-doc).
+# What counts as documentable comes from a profile: a built-in name (profiles/*.yml,
+# e.g. "valkey") or "./path/to/profile.yml" in the calling repo. README.md,
+# "Write your own profile", explains the format.
 #
 # Security: inputs reach shell steps only through env vars; actions are pinned to
 # commit SHAs; checkouts don't persist credentials; the analysis job is read-only;
@@ -30,9 +32,9 @@ on:
         type: string
         default: latest-tag
       profile:
-        description: Which extractors to run (currently "valkey")
+        description: Built-in profile name (e.g. "valkey") or "./path/to/profile.yml" in the calling repo
         type: string
-        default: valkey
+        required: true
       open_issue:
         description: Open a report issue in the calling repo
         type: boolean
@@ -76,6 +78,7 @@ jobs:
       ASSIGNEE: ${{ inputs.assignee }}
     steps:
       - name: Validate inputs
+        id: inputs
         run: |
           repo_re='^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$'
           ref_re='^[A-Za-z0-9._/+-]{1,200}$'
@@ -86,7 +89,12 @@ jobs:
             [[ "$r" =~ $ref_re && "$r" != -* && "$r" != *..* ]] || fail "unsafe ref: $r"
           done
           [[ -z "$ASSIGNEE" || "$ASSIGNEE" =~ ^[A-Za-z0-9-]{1,39}$ ]] || fail "assignee must be a GitHub login"
-          [[ "$PROFILE" == "valkey" ]] || fail "unknown profile: $PROFILE (available: valkey)"
+          if [[ "$PROFILE" == ./* ]]; then
+            [[ "$PROFILE" =~ ^\./[A-Za-z0-9._/-]+\.ya?ml$ && "$PROFILE" != *..* ]] || fail "profile path must be ./something.yml inside the calling repo"
+            echo "profile_rel=${PROFILE#./}" >> "$GITHUB_OUTPUT"   # sparse patterns can't start with ./
+          else
+            [[ "$PROFILE" =~ ^[A-Za-z0-9_-]{1,50}$ ]] || fail "profile must be a built-in name or ./path.yml"
+          fi
 
       - name: Resolve code ref
         id: ref
@@ -108,27 +116,6 @@ jobs:
           path: skill
           persist-credentials: false
 
-      - name: Check out docs
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ inputs.docs_repo }}
-          ref: ${{ inputs.docs_ref }}
-          path: docs
-          persist-credentials: false
-
-      - name: Check out code (sparse)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ inputs.code_repo }}
-          ref: ${{ steps.ref.outputs.code_ref }}
-          path: code
-          persist-credentials: false
-          sparse-checkout: |
-            src/commands
-            src/config.c
-            valkey.conf
-          sparse-checkout-cone-mode: false
-
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
@@ -139,21 +126,47 @@ jobs:
       - name: Self-test
         run: python -m unittest discover -s skill/tests
 
+      - name: Check out profile from the calling repo
+        if: ${{ startsWith(inputs.profile, './') }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: caller
+          persist-credentials: false
+          sparse-checkout: ${{ steps.inputs.outputs.profile_rel }}
+          sparse-checkout-cone-mode: false
+
+      - name: Load profile
+        id: profile
+        run: |
+          if [[ "$PROFILE" == ./* ]]; then file="caller/${PROFILE#./}"; else file="$PROFILE"; fi
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          paths=$(python -I skill/scripts/profile_coverage.py "$file" --print-sparse)
+          delim="EOF_$(openssl rand -hex 8)"
+          { echo "sparse<<$delim"; printf '%s\n' "$paths"; echo "$delim"; } >> "$GITHUB_OUTPUT"
+          echo "Profile: $file"; printf 'Sparse paths:\n%s\n' "${paths:-(full checkout)}"
+
+      - name: Check out docs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.docs_repo }}
+          ref: ${{ inputs.docs_ref }}
+          path: docs
+          persist-credentials: false
+
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.code_repo }}
+          ref: ${{ steps.ref.outputs.code_ref }}
+          path: code
+          persist-credentials: false
+          sparse-checkout: ${{ steps.profile.outputs.sparse }}
+          sparse-checkout-cone-mode: false
+
       - name: Run coverage
         env:
-          CODE_REF: ${{ steps.ref.outputs.code_ref }}
-        run: |
-          S=skill/scripts
-          mkdir -p cov
-          python -I $S/extract/valkey_commands.py code/src/commands --out cov/items_commands.csv
-          python -I $S/extract/valkey_config.py code/src/config.c --conf code/valkey.conf --out cov/items_config.csv
-          python -I $S/coverage.py cov/items_commands.csv cov/items_config.csv --docs docs --out cov \
-            --page-glob 'command=commands/*.md' \
-            --ignore-glob 'commands/bf.*' --ignore-glob 'commands/json.*' \
-            --ignore-glob 'commands/ft.*' --ignore-glob 'commands/blob.*' \
-            --mention-glob 'topics/*.md' --mention-glob 'commands/*.md' \
-            --exclude-glob 'topics/modules-api-ref.md'
-          python -I $S/checks/valkey_nav.py docs cov/items_commands.csv --out cov
+          PROFILE_FILE: ${{ steps.profile.outputs.file }}
+        run: python -I skill/scripts/profile_coverage.py "$PROFILE_FILE" --code code --docs docs --out cov
 
       - name: Name this run
         id: meta
@@ -179,9 +192,10 @@ jobs:
             echo
             echo "Status: **needs triage**. Findings are candidates; confirm each against the source before acting."
             echo
-            sed '1d' cov/coverage_summary.md | sed '/^## not_mentioned/,/^## /{/^## not_mentioned/d;/^- config/d}'
-            echo
-            sed '1d' cov/nav_summary.md
+            sed '1d' cov/coverage_summary.md
+            for extra in cov/nav_summary.md; do
+              [[ -f "$extra" ]] && { echo; sed '1d' "$extra"; }
+            done
           } > cov/issue_body.md
           head -c 60000 cov/issue_body.md > cov/issue_body.trimmed.md
           mv cov/issue_body.trimmed.md cov/issue_body.md

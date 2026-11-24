@@ -27,10 +27,24 @@ jobs:
     needs: unit
     uses: ./.github/workflows/docs-coverage.yml
     with:
+      profile: valkey                     # built-in name
       docs_repo: valkey-io/valkey-doc
       code_repo: valkey-io/valkey
       code_ref: latest-tag
       name: ci-coverage
+      retention_days: 1
+      skill_repo: ${{ github.repository }}
+      skill_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  coverage-profile-path-smoke:
+    needs: unit
+    uses: ./.github/workflows/docs-coverage.yml
+    with:
+      profile: ./profiles/valkey.yml      # profile file in the calling repo
+      docs_repo: valkey-io/valkey-doc
+      code_repo: valkey-io/valkey
+      code_ref: unstable
+      name: ci-coverage-path
       retention_days: 1
       skill_repo: ${{ github.repository }}
       skill_ref: ${{ github.event.pull_request.head.sha || github.sha }}

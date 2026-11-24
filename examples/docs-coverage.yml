@@ -1,5 +1,6 @@
 # Copy to .github/workflows/ in the repo that should hold the results.
 # Define your own pairs in the matrix: each entry is one docs-vs-code check.
+# The profile says what counts as documentable in your code.
 # code_ref accepts a branch, a tag, a commit, or "latest-tag" (newest X.Y.Z tag).
 name: Docs coverage
 
@@ -24,6 +25,9 @@ jobs:
             code_ref: latest-tag
     uses: Andriciuc/docs-health/.github/workflows/docs-coverage.yml@main   # pin to a tag or commit SHA
     with:
+      # Built-in profile name, or your own: ./.github/docs-health/myproject.yml in this repo.
+      # How to write one: README, "Write your own profile".
+      profile: valkey
       docs_repo: valkey-io/valkey-doc
       docs_ref: main
       code_repo: valkey-io/valkey

@@ -1,0 +1,67 @@
+# docs-health profile: Valkey server (valkey-io/valkey) vs its docs (valkey-io/valkey-doc).
+# Reference for writing your own: README.md, "Write your own profile".
+name: valkey
+description: Commands from src/commands/*.json and config options from src/config.c, checked against valkey-doc.
+
+# Paths the workflow checks out from the code repo (sparse). Leave out for a full checkout.
+code:
+  sparse:
+    - src/commands
+    - src/config.c
+    - valkey.conf
+
+docs:
+  # Doc pages that should each map to an item. Pages with no matching item are reported as orphans.
+  page_globs:
+    command: commands/*.md
+  # Orphan pages whose source isn't extracted here (module commands live in the module repos).
+  ignore_globs: [commands/bf.*, commands/json.*, commands/ft.*, commands/blob.*]
+  # Where to look for mentions (backticks, fenced code, bold).
+  mention_globs: [topics/*.md, commands/*.md]
+  # Never searched (generated reference).
+  exclude_globs: [topics/modules-api-ref.md]
+
+# Valkey-only extra: nav.yml / modules-nav / groups.json against the command groups.
+checks: [valkey_nav]
+
+items:
+  # One JSON file per command: {"GET": {...}}; subcommands carry "container" (ACL SETROLE).
+  - kind: command
+    source: json
+    files: [src/commands/*.json]
+    unwrap: single-key
+    id: "{stem}"
+    name: "{container} {key}"
+    fields:
+      group: "{group}"
+      container: "{container}"
+      since: "{since}"
+      deprecated_since: "{deprecated_since}"
+      replaced_by: "{replaced_by}"
+    skip_when:
+      - { field: doc_flags, contains: SYSCMD }        # internal commands
+    expect:
+      page: "commands/{stem}.md"
+      heading: { text: Reply, when_field: reply_schema }
+
+  # createBoolConfig("name", alias-or-NULL, FLAGS, ...) in the standardConfig table.
+  - kind: config
+    source: regex
+    files: [src/config.c]
+    flags: [DOTALL]
+    pattern: 'create\w+Config\(\s*"(?P<name>[^"]+)"\s*,\s*(?:NULL|"(?P<alias>[^"]*)")\s*,\s*(?P<flags>[A-Z_|\s]+?)\s*,'
+    id: "{name}"
+    aliases: "{alias}"
+    fields:
+      group: "{flags}"
+    skip_when:
+      - { field: flags, matches: "HIDDEN_CONFIG|DEBUG_CONFIG|DEPRECATED_CONFIG" }
+    expect:
+      mention: true
+    # valkey.conf is the config reference: an option documented there counts as documented
+    # (documented_elsewhere) even if the docs never mention it.
+    also_in:
+      files: [valkey.conf]
+      pattern: '^#?\s*([a-z][a-z0-9-]+)(?:\s|$)'
+      column: in_conf
+      counts_as_documented: true
