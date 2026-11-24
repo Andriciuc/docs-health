@@ -1,7 +1,13 @@
-# Reusable workflow: check a Valkey docs tree against the Valkey source.
-# Called from a docs repo (see examples/valkey-docs-coverage.yml). Deterministic: no AI step.
-# Opens one report issue per run, assigned to the owner, who triages the findings.
-# The run artifact holds the CSVs, the Markdown summaries and report.html (all of it in one page).
+# Reusable workflow: check a docs tree against the source code it documents.
+# Callers define their own pairs (docs repo/ref vs code repo/ref); see examples/.
+# Deterministic: no AI step, no PRs. Results: run summary, an artifact with
+# report.html + CSVs, and (optional) one issue per run for a person to triage.
+#
+# Profiles: "valkey" (src/commands/*.json, src/config.c, valkey.conf vs valkey-doc).
+#
+# Security: inputs reach shell steps only through env vars; actions are pinned to
+# commit SHAs; checkouts don't persist credentials; the analysis job is read-only
+# and only the optional issue job gets issues: write.
 name: docs-coverage
 
 on:
@@ -10,79 +16,132 @@ on:
       docs_repo:
         description: Docs repo (owner/name)
         type: string
-        default: valkey-io/valkey-doc
+        required: true
       docs_ref:
-        description: Docs branch or tag
+        description: Docs branch, tag or commit
         type: string
         default: main
       code_repo:
-        description: Code repo holding src/commands, src/config.c and valkey.conf
-        type: string
-        default: valkey-io/valkey
-      code_ref:
-        description: Code branch or tag. Match it to the release the docs target.
-        type: string
-        default: unstable
-      assignee:
-        description: GitHub user who triages the report
+        description: Code repo (owner/name)
         type: string
         required: true
+      code_ref:
+        description: Code branch, tag or commit, or "latest-tag" for the newest X.Y.Z release tag
+        type: string
+        default: latest-tag
+      profile:
+        description: Which extractors to run (currently "valkey")
+        type: string
+        default: valkey
       open_issue:
         description: Open a report issue in the calling repo
         type: boolean
-        default: true
+        default: false
+      assignee:
+        description: GitHub user to assign the issue to (empty = unassigned)
+        type: string
+        default: ""
+      name:
+        description: Short label for this pair, used in titles and artifact names
+        type: string
+        default: ""
+      retention_days:
+        type: number
+        default: 30
       skill_repo:
         type: string
         default: Andriciuc/docs-health
       skill_ref:
+        description: Pin to a tag or commit for reproducible runs
         type: string
         default: main
 
-permissions:
-  contents: read
-  issues: write
+permissions: {}
 
 jobs:
   coverage:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      title: ${{ steps.meta.outputs.title }}
+      artifact: ${{ steps.meta.outputs.artifact }}
+    env:
+      DOCS_REPO: ${{ inputs.docs_repo }}
+      DOCS_REF: ${{ inputs.docs_ref }}
+      CODE_REPO: ${{ inputs.code_repo }}
+      CODE_REF_IN: ${{ inputs.code_ref }}
+      PROFILE: ${{ inputs.profile }}
+      PAIR_NAME: ${{ inputs.name }}
+      ASSIGNEE: ${{ inputs.assignee }}
     steps:
+      - name: Validate inputs
+        run: |
+          repo_re='^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$'
+          ref_re='^[A-Za-z0-9._/+-]{1,200}$'
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$DOCS_REPO" =~ $repo_re ]] || fail "docs_repo must be owner/name"
+          [[ "$CODE_REPO" =~ $repo_re ]] || fail "code_repo must be owner/name"
+          for r in "$DOCS_REF" "$CODE_REF_IN"; do
+            [[ "$r" =~ $ref_re && "$r" != -* && "$r" != *..* ]] || fail "unsafe ref: $r"
+          done
+          [[ -z "$ASSIGNEE" || "$ASSIGNEE" =~ ^[A-Za-z0-9-]{1,39}$ ]] || fail "assignee must be a GitHub login"
+          [[ "$PROFILE" == "valkey" ]] || fail "unknown profile: $PROFILE (available: valkey)"
+
+      - name: Resolve code ref
+        id: ref
+        run: |
+          ref="$CODE_REF_IN"
+          if [[ "$ref" == "latest-tag" ]]; then
+            ref=$(git ls-remote --tags --refs "https://github.com/${CODE_REPO}.git" \
+                  | sed 's#.*refs/tags/##' | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+            [[ -n "$ref" ]] || { echo "::error::no X.Y.Z tags in $CODE_REPO"; exit 1; }
+          fi
+          echo "code_ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Code ref: $ref"
+
       - name: Check out scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.skill_repo }}
           ref: ${{ inputs.skill_ref }}
           path: skill
+          persist-credentials: false
 
       - name: Check out docs
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.docs_repo }}
           ref: ${{ inputs.docs_ref }}
           path: docs
+          persist-credentials: false
 
       - name: Check out code (sparse)
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.code_repo }}
-          ref: ${{ inputs.code_ref }}
+          ref: ${{ steps.ref.outputs.code_ref }}
           path: code
+          persist-credentials: false
           sparse-checkout: |
             src/commands
             src/config.c
             valkey.conf
           sparse-checkout-cone-mode: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
 
-      - name: Install PyYAML
-        run: pip install pyyaml
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check "pyyaml==6.0.2"
 
       - name: Self-test
         run: python -m unittest discover -s skill/tests
 
       - name: Run coverage
+        env:
+          CODE_REF: ${{ steps.ref.outputs.code_ref }}
         run: |
           S=skill/scripts
           mkdir -p cov
@@ -96,43 +155,63 @@ jobs:
             --exclude-glob 'topics/modules-api-ref.md'
           python -I $S/checks/valkey_nav.py docs cov/items_commands.csv --out cov
 
-      - name: Build HTML report
-        run: |
-          python -I skill/scripts/html_report.py cov \
-            --title "Docs coverage: ${{ inputs.docs_repo }}@${{ inputs.docs_ref }} vs ${{ inputs.code_repo }}@${{ inputs.code_ref }}"
-
-      - name: Upload data
-        uses: actions/upload-artifact@v4
-        with:
-          name: docs-coverage-${{ github.run_id }}
-          path: cov/
-          retention-days: 90
-
-      - name: Build report
+      - name: Name this run
+        id: meta
         env:
-          DOCS: ${{ inputs.docs_repo }}@${{ inputs.docs_ref }}
-          CODE: ${{ inputs.code_repo }}@${{ inputs.code_ref }}
+          CODE_REF: ${{ steps.ref.outputs.code_ref }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          label="${PAIR_NAME:-${DOCS_REPO#*/}@${DOCS_REF} vs ${CODE_REPO#*/}@${CODE_REF}}"
+          slug=$(printf '%s' "$label" | tr -c 'A-Za-z0-9._-' '-' | tr -s '-' | cut -c1-60)
+          echo "title=Docs coverage $(date -u +%Y-%m-%d): $label" >> "$GITHUB_OUTPUT"
+          echo "artifact=docs-coverage-${slug}-${RUN_ID}-${RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          echo "LABEL=$label" >> "$GITHUB_ENV"
+
+      - name: Build reports
+        env:
+          CODE_REF: ${{ steps.ref.outputs.code_ref }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          python -I skill/scripts/html_report.py cov --title "Docs coverage: $LABEL"
           {
-            echo "Docs: \`$DOCS\` · Code: \`$CODE\` · [Run, HTML report (report.html) and CSV data]($RUN_URL)"
+            echo "Docs: \`${DOCS_REPO}@${DOCS_REF}\` · Code: \`${CODE_REPO}@${CODE_REF}\` · [Run, report.html and CSV data](${RUN_URL})"
             echo
             echo "Status: **needs triage**. Findings are candidates; confirm each against the source before acting."
             echo
             sed '1d' cov/coverage_summary.md | sed '/^## not_mentioned/,/^## /{/^## not_mentioned/d;/^- config/d}'
             echo
             sed '1d' cov/nav_summary.md
-          } > report.md
-          # GitHub issue bodies are capped at 65,536 characters
-          head -c 60000 report.md > body.md
-          cat body.md >> "$GITHUB_STEP_SUMMARY"
+          } > cov/issue_body.md
+          head -c 60000 cov/issue_body.md > cov/issue_body.trimmed.md
+          mv cov/issue_body.trimmed.md cov/issue_body.md
+          cat cov/issue_body.md >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Upload data
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.meta.outputs.artifact }}
+          path: cov/
+          retention-days: ${{ inputs.retention_days }}
+
+  issue:
+    needs: coverage
+    if: ${{ inputs.open_issue }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.coverage.outputs.artifact }}
+          path: cov
       - name: Open report issue
-        if: ${{ inputs.open_issue }}
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TITLE: ${{ needs.coverage.outputs.title }}
+          ASSIGNEE: ${{ inputs.assignee }}
         run: |
-          gh issue create --repo "${{ github.repository }}" \
-            --title "Docs coverage report $(date -u +%Y-%m-%d): ${{ inputs.docs_ref }} vs ${{ inputs.code_ref }}" \
-            --assignee "${{ inputs.assignee }}" \
-            --body-file body.md
+          args=(--repo "$REPO" --title "$TITLE" --body-file cov/issue_body.md)
+          [[ -n "$ASSIGNEE" ]] && args+=(--assignee "$ASSIGNEE")
+          gh issue create "${args[@]}"
