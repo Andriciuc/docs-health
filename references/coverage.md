@@ -23,7 +23,7 @@ Code is the list of things that should be documented. A profile (`profiles/*.yml
 | `skip_reason` | set when the code says it isn't meant to be documented (`SYSCMD`, `HIDDEN_CONFIG`) |
 | `deprecated_since`, `replaced_by` | used to flag deprecated items the docs still teach |
 
-`scripts/coverage.py` matches items against a docs tree. Nothing in the engine is project-specific: project knowledge lives in the profile, and the rare check that doesn't fit the profile format lives in `scripts/checks/` (only `valkey_nav` today), enabled by the profile's `checks` list.
+`scripts/docs_coverage.py` matches items against a docs tree. Nothing in the engine is project-specific: project knowledge lives in the profile, and the rare check that doesn't fit the profile format lives in `scripts/checks/` (only `valkey_nav` today), enabled by the profile's `checks` list.
 
 Statuses: `documented`, `missing_heading`, `undocumented`, `no_page_mentioned` (no page of its own but covered in another page), `mentioned`, `not_mentioned`, `documented_elsewhere` (found in a code-side reference file the profile marks with `also_in.counts_as_documented`, e.g. `valkey.conf`), `skipped`. Pages under `--page-glob` with no matching item go to `orphans.csv` (`no_source`, or `source_not_scanned` when they match `--ignore-glob`).
 

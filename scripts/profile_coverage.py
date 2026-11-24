@@ -9,11 +9,11 @@ PROFILE is a built-in name (a file in profiles/, e.g. "valkey") or a path to a
 .yml/.yaml file. The profile says where the documentable items are in the code
 (JSON/YAML fields or a regex), what each item needs in the docs (its own page, a
 heading on that page, or a mention), and when to skip one. This script turns the
-code into items, then runs coverage.py's matcher on the docs.
+code into items, then runs docs_coverage.py's matcher on the docs.
 
 Writes to --out (default ./docs-coverage):
   items.csv             every extracted item (common items format)
-  coverage.csv, orphans.csv, coverage_summary.md   from coverage.py
+  coverage.csv, orphans.csv, coverage_summary.md   from docs_coverage.py
   plus the output of any checks the profile lists (e.g. valkey_nav)
 
 Profile reference: docs/checks/write-a-profile.md. Example: profiles/valkey.yml.
@@ -29,7 +29,7 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE / "checks")]
-import coverage  # noqa: E402
+import docs_coverage  # noqa: E402
 import safeio  # noqa: E402
 
 FIELDS = ["kind", "id", "name", "aliases", "expected_page", "require_heading", "skip_reason",
@@ -297,7 +297,7 @@ def run(profile_spec, code, docs, out):
             r["status"], r["detail"] = "documented_elsewhere", f"in {rule[1]}"
         return r
 
-    rows, orphans = coverage.run(coverage.read_items([out / "items.csv"]), docs, out, page_globs,
+    rows, orphans = docs_coverage.run(docs_coverage.read_items([out / "items.csv"]), docs, out, page_globs,
                                  d.get("ignore_globs") or [], d.get("mention_globs") or ["**/*.md"],
                                  d.get("exclude_globs") or [], adjust=adjust)
     for name in profile.get("checks") or []:

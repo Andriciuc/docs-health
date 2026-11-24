@@ -2,7 +2,7 @@
 """Check docs coverage of items extracted from code (commands, config options, functions...).
 
 Usage:
-  python coverage.py ITEMS.csv [ITEMS.csv ...] --docs DOCS_ROOT [--out DIR]
+  python docs_coverage.py ITEMS.csv [ITEMS.csv ...] --docs DOCS_ROOT [--out DIR]
                      [--page-glob KIND=GLOB ...] [--ignore-glob GLOB ...]
                      [--mention-glob GLOB ...] [--exclude-glob GLOB ...]
 
