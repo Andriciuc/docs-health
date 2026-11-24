@@ -1,9 +1,9 @@
 ---
-name: "docs-architecture"
-description: Documentation architecture for docs-as-code sets (information architecture, content models, docs metrics). Use it to audit or restructure a docs nav or IA, merge/split/move pages, define topic types, front matter schemas, templates or reuse (snippets, variables, single-sourcing), and to measure a doc set (inventory, stale pages, orphans, broken links, nav drift, duplication, coverage, analytics joins, health KPIs). Also use it to compare two doc sets - two branches (unstable vs main), a local checkout vs a GitHub branch, or two repos - to find what is missing, behind or broken on one side. Ends with an optimization report from a separate reviewer agent. Trigger for MkDocs or other Markdown doc repos the user names, even for "is our structure OK", "what pages are stale", "what is missing on this branch" or "give me numbers on the docs". Not for line-editing prose or reviewing one page's wording.
+name: "docs-health"
+description: Health checks for docs-as-code sets. Use it to audit or restructure a docs nav or IA (merge/split/move pages, topic types, front matter, reuse), to measure a doc set (inventory, stale pages, orphans, broken links, nav drift, duplication, analytics joins), to compare two doc sets (two branches, a local checkout vs GitHub, two repos), to check docs against code (undocumented commands or config options, pages for removed items, missing Reply sections, deprecated names still taught), and to run a metadata and SEO pass (titles, meta descriptions, H1s, canonicals, structured data). Outputs CSVs, a Markdown report and a self-contained HTML report, and ends with a separate reviewer agent. Trigger for MkDocs or other Markdown doc repos the user names, even for "is our structure OK", "what pages are stale", "what is missing on this branch", "what is undocumented" or "check our titles and descriptions". Not for line-editing prose.
 ---
 
-# Docs architecture
+# Docs health
 
 Treat a doc set as a dataset. Measure it, design from the data, then change it in a way that keeps the URLs working.
 

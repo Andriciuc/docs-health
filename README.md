@@ -1,6 +1,6 @@
-# docs-architecture
+# docs-health
 
-A Claude skill that treats a docs-as-code set as a dataset. It inventories every page, measures freshness, links, nav coverage and duplication, and turns the numbers into a ranked architecture review. A separate reviewer agent then checks that review.
+A Claude skill and GitHub workflow that treats a docs-as-code set as a dataset. It inventories every page, measures freshness, links, nav coverage and duplication, checks the docs against the code they describe and audits SEO metadata, then turns the numbers into a ranked review. A separate reviewer agent then checks that review.
 
 It's built for MkDocs and plain-Markdown doc repos, such as Percona Distribution for PostgreSQL, pg_tde and valkey-doc. The scripts are also usable on their own, without Claude.
 
@@ -61,20 +61,22 @@ The repo root is the skill folder, since `SKILL.md` sits at the top.
 **Claude Code (personal skill)**
 
 ```bash
-git clone https://github.com/Andriciuc/docs-architecture.git ~/.claude/skills/docs-architecture
+git clone https://github.com/Andriciuc/docs-health.git ~/.claude/skills/docs-health
 ```
 
-To install it for a single project instead, clone it into that project's `.claude/skills/docs-architecture/`.
+To install it for a single project instead, clone it into that project's `.claude/skills/docs-health/`.
 
 **Claude apps (claude.ai, desktop)**
 
-Build a ZIP whose top-level folder is the skill, then upload it from the Skills section of Claude's settings:
+Build a `.skill` file whose top-level folder is the skill, then upload it from the Skills section of Claude's settings:
 
 ```bash
-git archive --format=zip --prefix=docs-architecture/ -o docs-architecture.zip HEAD
+git archive --format=zip --prefix=docs-health/ -o docs-health.skill HEAD SKILL.md README.md LICENSE agents references scripts
 ```
 
-When you change the skill here, upload the ZIP again. The uploaded copy doesn't follow this repo.
+The `.skill` file is a ZIP with the skill folder at the top; the tests, fixtures and workflows stay in the repo. When you change the skill here, upload the file again: the uploaded copy doesn't follow this repo.
+
+Renamed from `docs-architecture`: if you installed the old name, delete it from your skills so Claude doesn't see two copies. GitHub redirects the old repo URL.
 
 **Requirements for the scripts**
 
@@ -88,10 +90,10 @@ When you change the skill here, upload the ZIP again. The uploaded copy doesn't 
 Name the repo, and the branch or path. The skill analyzes only the sources you name and asks if none is given.
 
 ```
-/docs-architecture audit valkey-io/valkey-doc main for gaps and stale pages
-/docs-architecture compare percona/postgresql-docs 18 vs 19, what's missing on 18?
-/docs-architecture propose a restructure of the Get started section in ~/work/pg_tde
-/docs-architecture which pages should we fix first? (attach a GA4 Pages export)
+/docs-health audit valkey-io/valkey-doc main for gaps and stale pages
+/docs-health compare percona/postgresql-docs 18 vs 19, what's missing on 18?
+/docs-health propose a restructure of the Get started section in ~/work/pg_tde
+/docs-health which pages should we fix first? (attach a GA4 Pages export)
 ```
 
 Claude will:
@@ -221,7 +223,7 @@ Requirements: Issues enabled on the repo (Settings → General → Features). Bo
 
 ### Run it from another repo
 
-Copy `examples/valkey-docs-coverage.yml` to `.github/workflows/` in the repo that should receive the issues, and set `docs_repo`, `code_repo` and `assignee`. The example calls `Andriciuc/docs-architecture/.github/workflows/docs-coverage.yml@main`. Forks have Issues turned off by default, so turn them on first, or set `open_issue: false` and use the artifact.
+Copy `examples/valkey-docs-coverage.yml` to `.github/workflows/` in the repo that should receive the issues, and set `docs_repo`, `code_repo` and `assignee`. The example calls `Andriciuc/docs-health/.github/workflows/docs-coverage.yml@main`. Forks have Issues turned off by default, so turn them on first, or set `open_issue: false` and use the artifact.
 
 Notes:
 - Scheduled workflows run only from the default branch. GitHub disables them in public repos after 60 days with no repo activity.

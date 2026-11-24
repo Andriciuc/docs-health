@@ -209,7 +209,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("dirs", nargs="+")
     ap.add_argument("--out", help="default: <first dir>/report.html")
-    ap.add_argument("--title", default="Docs architecture report")
+    ap.add_argument("--title", default="Docs health report")
     ap.add_argument("--max-rows", type=int, default=5000)
     a = ap.parse_args()
     for d in a.dirs:

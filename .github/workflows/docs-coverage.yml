@@ -33,7 +33,7 @@ on:
         default: true
       skill_repo:
         type: string
-        default: Andriciuc/docs-architecture
+        default: Andriciuc/docs-health
       skill_ref:
         type: string
         default: main
