@@ -50,7 +50,7 @@ The site's source is in [`docs/`](docs/). Edit it there; `pages.yml` publishes e
 Issues and PRs are welcome. Every PR runs these checks, and a finding fails the check on the PR:
 
 - **ruff**: lints the Python for bugs and insecure patterns.
-- **Tests**: the unit tests, including tests for the hardening.
+- **Tests**: the unit tests, including tests for the hardening. Fails if line coverage drops below 80%.
 - **pip-audit**: checks the pinned packages for known CVEs.
 - **zizmor**: static security analysis of the workflows.
 - **Docs build**: a strict MkDocs build plus docs-health's own metadata check.

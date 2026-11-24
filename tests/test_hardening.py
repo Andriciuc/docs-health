@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "scripts" / "checks")]
-import coverage
+import docs_coverage
 import profile_coverage as pc
 import safeio
 
@@ -111,7 +111,7 @@ class ExpectedPageTraversalTest(unittest.TestCase):
             w = csv.DictWriter(f, fieldnames=["kind", "id", "name", "expected_page", "require_heading"])
             w.writeheader()
             w.writerow({"kind": "command", "id": "x", "name": "x", "expected_page": "../outside.md", "require_heading": "Reply"})
-        rows, _ = coverage.run(coverage.read_items([items]), docs, Path(tempfile.mkdtemp()), [], [], ["**/*.md"], [])
+        rows, _ = docs_coverage.run(docs_coverage.read_items([items]), docs, Path(tempfile.mkdtemp()), [], [], ["**/*.md"], [])
         self.assertEqual(rows[0]["status"], "undocumented")
 
 

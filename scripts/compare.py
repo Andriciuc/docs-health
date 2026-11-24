@@ -181,8 +181,8 @@ def flat(d, pre=""):
             out[f"{pre}{k}"] = "" if v is None else str(v)
     return out
 
-def main():
-    argv = sys.argv[1:]
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
     extra = []
     if "--" in argv:
         i = argv.index("--"); argv, extra = argv[:i], argv[i + 1:]

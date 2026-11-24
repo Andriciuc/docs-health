@@ -243,7 +243,7 @@ def git_history(repo, subdir, bulk=30, skip_subject=None):
     return last, count, shallow, skipped
 
 # ---------- main ----------
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("repo")
     ap.add_argument("--config", action="append", help="mkdocs config(s), relative to repo; repeatable. Default: auto-detect mkdocs*.yml")
@@ -256,7 +256,7 @@ def main():
                     help="also ignore commits whose subject matches REGEX for page age, e.g. 'mentions to [0-9]+|bump version'")
     ap.add_argument("--type-rule", action="append", default=[], metavar="GLOB=TYPE",
                     help="force topic type for paths matching GLOB (relative to docs_dir), e.g. 'commands/*.md=reference'; repeatable, first match wins")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
 
     repo = Path(a.repo).resolve()
     cfg_paths = [repo / c for c in a.config] if a.config else (
