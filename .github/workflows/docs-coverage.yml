@@ -78,6 +78,7 @@ jobs:
       ASSIGNEE: ${{ inputs.assignee }}
     steps:
       - name: Validate inputs
+        id: inputs
         run: |
           repo_re='^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$'
           ref_re='^[A-Za-z0-9._/+-]{1,200}$'
@@ -90,6 +91,7 @@ jobs:
           [[ -z "$ASSIGNEE" || "$ASSIGNEE" =~ ^[A-Za-z0-9-]{1,39}$ ]] || fail "assignee must be a GitHub login"
           if [[ "$PROFILE" == ./* ]]; then
             [[ "$PROFILE" =~ ^\./[A-Za-z0-9._/-]+\.ya?ml$ && "$PROFILE" != *..* ]] || fail "profile path must be ./something.yml inside the calling repo"
+            echo "profile_rel=${PROFILE#./}" >> "$GITHUB_OUTPUT"   # sparse patterns can't start with ./
           else
             [[ "$PROFILE" =~ ^[A-Za-z0-9_-]{1,50}$ ]] || fail "profile must be a built-in name or ./path.yml"
           fi
@@ -130,7 +132,7 @@ jobs:
         with:
           path: caller
           persist-credentials: false
-          sparse-checkout: ${{ inputs.profile }}
+          sparse-checkout: ${{ steps.inputs.outputs.profile_rel }}
           sparse-checkout-cone-mode: false
 
       - name: Load profile
