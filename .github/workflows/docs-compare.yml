@@ -120,7 +120,7 @@ jobs:
           repository: ${{ inputs.a_repo }}
           ref: ${{ steps.ref.outputs.a }}
           path: src/a
-          fetch-depth: ${{ inputs.history && 0 || 1 }}
+          fetch-depth: ${{ !inputs.history && 1 || 0 }}   # 0 = full history; "history && 0 || 1" always gave 1
           persist-credentials: false
 
       - name: Check out B
@@ -129,7 +129,7 @@ jobs:
           repository: ${{ inputs.b_repo || inputs.a_repo }}
           ref: ${{ steps.ref.outputs.b }}
           path: src/b
-          fetch-depth: ${{ inputs.history && 0 || 1 }}
+          fetch-depth: ${{ !inputs.history && 1 || 0 }}   # 0 = full history; "history && 0 || 1" always gave 1
           persist-credentials: false
 
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0

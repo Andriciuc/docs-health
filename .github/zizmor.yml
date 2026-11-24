@@ -1,0 +1,5 @@
+rules:
+  # Suggests a newer '$/' syntax for calling this repo's own reusable workflows.
+  # './.github/workflows/x.yml' is the documented form and works everywhere, so keep it.
+  self-repository:
+    disable: true
