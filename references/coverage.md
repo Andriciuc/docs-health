@@ -32,7 +32,7 @@ Statuses: `documented`, `missing_heading`, `undocumented`, `no_page_mentioned` (
 Inputs: a `valkey` checkout (`src/commands/`, `src/config.c`, `valkey.conf`) and a `valkey-doc` checkout. A sparse clone of `valkey` with `src/commands` and `src/config.c` is enough. Module commands come from the module repos (`valkey-bloom`, `valkey-json`, `valkey-search`, `valkey-large-object`). If you don't extract them, ignore their pages.
 
 ```bash
-S=path/to/docs-architecture/scripts
+S=path/to/docs-health/scripts
 python $S/extract/valkey_commands.py valkey/src/commands --out cov/items_commands.csv
 python $S/extract/valkey_config.py valkey/src/config.c --conf valkey/valkey.conf --out cov/items_config.csv
 python $S/coverage.py cov/items_commands.csv cov/items_config.csv --docs valkey-doc --out cov \

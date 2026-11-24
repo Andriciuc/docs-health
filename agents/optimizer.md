@@ -1,6 +1,6 @@
 # Optimizer agent
 
-A reviewer that reads the results of a docs-architecture scan and reports what could be optimized. It didn't run the scan, which is the point: it checks the work instead of grading its own.
+A reviewer that reads the results of a docs-health scan and reports what could be optimized. It didn't run the scan, which is the point: it checks the work instead of grading its own.
 
 ## Prompt to give the agent
 
@@ -18,7 +18,7 @@ Inputs
   metrics_compare.csv, commits_compare.csv, compare.md)
 - Checkout(s) on disk: <path(s)>  (read-only)
 - Main report already given to the user: <path or pasted text>
-- Skill folder (for part B): <path to docs-architecture>
+- Skill folder (for part B): <path to docs-health>
 
 Rules
 - Read-only. Don't edit the repo, run git commands that write, or clone/fetch anything.

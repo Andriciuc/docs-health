@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   coverage:
-    uses: Andriciuc/docs-architecture/.github/workflows/docs-coverage.yml@main
+    uses: Andriciuc/docs-health/.github/workflows/docs-coverage.yml@main
     with:
       docs_repo: Andriciuc/valkey-doc
       docs_ref: ${{ inputs.docs_ref || 'main' }}
