@@ -25,6 +25,9 @@ Outputs (next to --out):
 import argparse, csv, re, sys
 from collections import defaultdict
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import safeio
 from urllib.parse import urlparse
 
 VERSION = re.compile(r"^(\d+(\.\d+)*|latest|main|dev|stable)$")
@@ -50,7 +53,7 @@ ap.add_argument("pages"); ap.add_argument("analytics")
 ap.add_argument("--key"); ap.add_argument("--out", default="joined.csv")
 a = ap.parse_args()
 
-pages = list(csv.DictReader(open(a.pages, encoding="utf-8")))
+pages = safeio.read_csv(a.pages)
 with open(a.analytics, encoding="utf-8-sig") as f:
     lines = [l for l in f if not l.startswith("#") and l.strip()]
 rows = list(csv.DictReader(lines))
@@ -97,15 +100,15 @@ def final(d):
 
 out = Path(a.out); out.parent.mkdir(parents=True, exist_ok=True)
 with open(out, "w", newline="", encoding="utf-8") as f:
-    w = csv.DictWriter(f, fieldnames=list(pages[0]) + metrics); w.writeheader()
+    w = safeio.DictWriter(f, fieldnames=list(pages[0]) + metrics); w.writeheader()
     for p in pages:
-        w.writerow({**p, **(final(agg[p["path"]]) if p["path"] in agg else {m: "" for m in metrics})})
+        w.writerow({**p, **(final(agg[p["path"]]) if p["path"] in agg else dict.fromkeys(metrics, ""))})
 with open(out.with_name("joined_by_version.csv"), "w", newline="", encoding="utf-8") as f:
-    w = csv.writer(f); w.writerow(["path", "version"] + metrics)
+    w = safeio.writer(f); w.writerow(["path", "version"] + metrics)
     for (pth, ver), d in sorted(by_ver.items()):
         f_ = final(d); w.writerow([pth, ver] + [f_[m] for m in metrics])
 with open(out.with_name("unmatched.csv"), "w", newline="", encoding="utf-8") as f:
-    w = csv.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(unmatched)
+    w = safeio.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(unmatched)
 print(f"key={key!r} summed={additive} weighted-mean (by {weight_col})={ratio}")
 users = [m for m in additive if re.search(r"user|visitor|session", m, re.I)]
 if users:

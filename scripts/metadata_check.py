@@ -40,9 +40,12 @@ Writes to --out (default ./docs-metadata):
 
 Stdlib + PyYAML (optional: without it, simple `key: value` front matter is read).
 """
-import argparse, csv, re, sys
+import argparse, re, sys
 from collections import Counter, defaultdict
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import safeio
 
 try:
     import yaml
@@ -51,7 +54,7 @@ except ImportError:  # pragma: no cover
 
 FENCE = re.compile(r"^\s*(```|~~~)")
 H1 = re.compile(r"^#\s+(.+?)\s*#*\s*$")
-SEPARATORS = (" - ", " – ", " — ", ": ", " | ")
+SEPARATORS = (" - ", " – ", " — ", ": ", " | ")  # noqa: RUF001 - en dash is a real title separator
 SEVERITY = {
     "missing_title": "error", "duplicate_title": "error",
     "missing_description": "warn", "duplicate_description": "warn", "short_title": "warn",
@@ -112,12 +115,12 @@ def run(root, globs, title_key, desc_key, title_max, desc_min, desc_max, prefix_
     pages = []
     seen = set()
     for g in globs:
-        for f in sorted(root.glob(g)):
+        for f in safeio.files(root, g):
             rel = f.relative_to(root).as_posix()
-            if rel in seen or not f.is_file():
+            if rel in seen:
                 continue
             seen.add(rel)
-            text = f.read_text(encoding="utf-8-sig", errors="replace")
+            text = safeio.read_text(f)
             fm, body = front_matter(text)
             heads = h1s(body)
             fm_title = norm(fm.get(title_key))
@@ -170,7 +173,7 @@ def write(pages, prefixes, out, root, prefix_min):
     out.mkdir(parents=True, exist_ok=True)
     cols = ["path", "title", "title_source", "rendered_title", "title_len", "description", "desc_len", "h1_count", "first_h1", "worst", "issues"]
     with open(out / "metadata.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+        w = safeio.DictWriter(f, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
         w.writerows(pages)
     by_issue = defaultdict(list)

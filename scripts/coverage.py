@@ -43,9 +43,12 @@ Writes to --out (default ./docs-coverage):
 
 Stdlib only. Read-only on both trees.
 """
-import argparse, csv, fnmatch, re, sys
+import argparse, fnmatch, re, sys
 from collections import Counter, defaultdict
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import safeio
 
 HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
 FENCE = re.compile(r"^\s*(```|~~~)")
@@ -54,8 +57,7 @@ FENCE = re.compile(r"^\s*(```|~~~)")
 def read_items(paths):
     items = []
     for p in paths:
-        with open(p, newline="", encoding="utf-8-sig") as f:
-            items.extend(csv.DictReader(f))
+        items.extend(safeio.read_csv(p))
     return items
 
 
@@ -63,11 +65,11 @@ def page_index(root, globs, exclude):
     """relative path -> (headings, code spans): backticked text and fenced code lines, lowercased"""
     out = {}
     for g in globs:
-        for f in sorted(root.glob(g)):
+        for f in safeio.files(root, g):
             rel = f.relative_to(root).as_posix()
             if rel in out or any(fnmatch.fnmatch(rel, x) for x in exclude):
                 continue
-            text = f.read_text(encoding="utf-8-sig", errors="replace")
+            text = safeio.read_text(f)
             heads, spans = [], set()
             infence = False
             for line in text.splitlines():
@@ -100,7 +102,7 @@ def mentioned(names, spans):
 
 
 def has_heading(path, want):
-    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    text = safeio.read_text(path)
     infence = False
     for line in text.splitlines():
         if FENCE.match(line):
@@ -131,7 +133,7 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
             status, detail = "skipped", it["skip_reason"]
         elif exp:
             p = docs / exp
-            if not p.exists():
+            if not safeio.readable(p, docs):   # missing, or a name like ../../x escaping docs/
                 if hits:
                     status, detail = "no_page_mentioned", f"no {exp}; covered only in other pages"
                 else:
@@ -154,7 +156,7 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
     orphans = []
     for spec in page_globs:
         kind, _, g = spec.partition("=")
-        for f in sorted(docs.glob(g)):
+        for f in safeio.files(docs, g):
             rel = f.relative_to(docs).as_posix()
             if f.stem in ids_by_kind[kind] or f.stem in ("index", "_index"):
                 continue
@@ -169,11 +171,11 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
     for r in rows:  # union: extractors may add their own columns (e.g. in_conf)
         cols += [c for c in r if c not in cols]
     with open(out / "coverage.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+        w = safeio.DictWriter(f, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
     with open(out / "orphans.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["kind", "page", "reason"])
+        w = safeio.DictWriter(f, fieldnames=["kind", "page", "reason"])
         w.writeheader()
         w.writerows(orphans)
 

@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FIX = Path(__file__).resolve().parent / "fixtures" / "generic"
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "scripts" / "checks")]
-import profile_coverage as pc  # noqa: E402
+import profile_coverage as pc
 
 
 def write_profile(text):

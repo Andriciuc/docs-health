@@ -26,14 +26,26 @@ Writes to --out (default ./docs-compare):
   metrics_compare.csv    summary metrics side by side with delta
   compare.md             digest of all of the above
 """
-import argparse, csv, difflib, json, os, re, subprocess, sys
+import argparse, difflib, json, re, subprocess, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import safeio  # noqa: E402
 GH = re.compile(r"^(?:https?://github\.com/)?([\w.-]+)/([\w.-]+?)(?:\.git)?(?:/tree/(.+?))?/?$")
 
+def sh(cmd, **kw):
+    """subprocess.run without a shell, never prompting, with a timeout. A timeout counts as a failure."""
+    kw.setdefault("env", safeio.GIT_ENV)
+    kw.setdefault("timeout", safeio.GIT_TIMEOUT)
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, check=False, **kw)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(cmd, 124, "", f"timed out after {kw['timeout']}s")
+
+
 def run(cmd, **kw):
-    r = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    r = sh(cmd, **kw)
     if r.returncode:
         sys.exit(f"failed: {' '.join(map(str, cmd))}\n{r.stderr.strip()}")
     return r.stdout
@@ -79,7 +91,7 @@ def materialize(src, work, side, shallow, clones):
         else:
             run(["git", "-C", str(dest), "fetch", "-q", "origin", "+refs/heads/*:refs/remotes/origin/*"])
         ref = src["ref"]
-        ok = lambda r: subprocess.run(["git", "-C", str(dest), "rev-parse", "--verify", "-q", r], capture_output=True).returncode == 0
+        ok = lambda r: sh(["git", "-C", str(dest), "rev-parse", "--verify", "-q", r]).returncode == 0
         run(["git", "-C", str(dest), "checkout", "-q", "--detach", f"origin/{ref}" if ok(f"origin/{ref}") else ref])
         return dest
     repo = src["repo"]
@@ -91,7 +103,7 @@ def materialize(src, work, side, shallow, clones):
             cmd = ["git", "-C", str(dest), "fetch", "-q", "origin"]
         if shallow:
             cmd[4:4] = ["--depth", "1"]
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        r = sh(cmd)
         if r.returncode and ref:  # a tag or commit, not a branch
             run(["git", "-C", str(dest), "fetch", "-q", "origin", ref] + (["--depth", "1"] if shallow else []))
         return f"origin/{ref}" if ref and r.returncode == 0 else (ref or "origin/HEAD")
@@ -103,7 +115,7 @@ def materialize(src, work, side, shallow, clones):
                 cmd[4:4] = ["--branch", src["ref"]]
             if shallow:
                 cmd[4:4] = ["--depth", "1"]
-            if subprocess.run(cmd, capture_output=True).returncode:  # ref may be a tag/commit
+            if sh(cmd).returncode:  # ref may be a tag/commit
                 run(["git", "clone", "-q", "--no-checkout", "--single-branch", f"https://github.com/{repo}.git", str(dest)])
         return dest
     if repo not in clones:
@@ -125,7 +137,9 @@ def label(src):
     return f"{base}@{src['ref']}" if src["ref"] else (f"{base} (working tree)" if src["kind"] == "local" else base)
 
 def rcsv(p):
-    return list(csv.DictReader(open(p, encoding="utf-8"))) if Path(p).exists() else []
+    if not Path(p).exists():
+        return []
+    return safeio.read_csv(p)
 
 def headings(text):
     out, code = [], False
@@ -145,11 +159,16 @@ def norm_text(t):
 
 def load_vars(root, summary):
     for cand in [root / "variables.yml", root / Path(summary.get("docs_dir", ".")).parent / "variables.yml"]:
-        if cand.exists():
+        if safeio.readable(cand, root):
             try:
                 import yaml
-                return yaml.safe_load(open(cand, encoding="utf-8")) or {}
-            except Exception:
+            except ImportError:
+                return {}
+            try:
+                with open(cand, encoding="utf-8") as f:
+                    return yaml.safe_load(f) or {}
+            except (OSError, ValueError, yaml.YAMLError) as e:
+                safeio.warn(f"cannot read {cand}: {e}")
                 return {}
     return {}
 
@@ -183,11 +202,11 @@ def main():
     la, lb = a.label_a or label(sa), a.label_b or label(sb)
 
     for side, root in (("a", ra), ("b", rb)):
-        r = subprocess.run([sys.executable, str(HERE / "inventory.py"), str(root), "--out", str(out / side)] + extra,
-                           capture_output=True, text=True)
+        r = sh([sys.executable, str(HERE / "inventory.py"), str(root), "--out", str(out / side), *extra])
         if r.returncode:
             sys.exit(f"inventory failed for {side} ({root}):\n{r.stderr}")
-    SA = json.load(open(out / "a/summary.json")); SB = json.load(open(out / "b/summary.json"))
+    SA = json.loads((out / "a/summary.json").read_text(encoding="utf-8"))
+    SB = json.loads((out / "b/summary.json").read_text(encoding="utf-8"))
     PA = {r["path"]: r for r in rcsv(out / "a/pages.csv")}; PB = {r["path"]: r for r in rcsv(out / "b/pages.csv")}
     da = Path(ra) / SA["docs_dir"]; db = Path(rb) / SB["docs_dir"]
     txt = lambda d, p: (d / p).read_text(encoding="utf-8-sig", errors="replace")
@@ -240,7 +259,7 @@ def main():
     rows += [page_row("only_a", p, None) for p in only_a] + [page_row("only_b", None, q) for q in only_b]
     fields = list(rows[0]) if rows else ["status"]
     with open(out / "pages_compare.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fields); w.writeheader(); w.writerows(rows)
+        w = safeio.DictWriter(f, fieldnames=fields); w.writeheader(); w.writerows(rows)
 
     # ---------- nav ----------
     NA, NB = rcsv(out / "a/nav.csv"), rcsv(out / "b/nav.csv")
@@ -261,7 +280,7 @@ def main():
                              "depth_a": x["depth"] if x else "", "depth_b": y["depth"] if y else ""})
     unshared = sorted({r["config"] for r in NA} ^ {r["config"] for r in NB})
     with open(out / "nav_compare.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["config", "status", "path", "section_a", "section_b", "title_a", "title_b", "depth_a", "depth_b"])
+        w = safeio.DictWriter(f, fieldnames=["config", "status", "path", "section_a", "section_b", "title_a", "title_b", "depth_a", "depth_b"])
         w.writeheader(); w.writerows(nav_rows)
 
     # ---------- issues ----------
@@ -279,7 +298,7 @@ def main():
     iss = [{"issue": k, "where": w_, "detail": d, "status": "fixed_in_b" if (k, w_, d) in IA - IB else
             "introduced_in_b" if (k, w_, d) in IB - IA else "both"} for (k, w_, d) in sorted(IA | IB)]
     with open(out / "issues_compare.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["issue", "where", "detail", "status"]); w.writeheader(); w.writerows(iss)
+        w = safeio.DictWriter(f, fieldnames=["issue", "where", "detail", "status"]); w.writeheader(); w.writerows(iss)
 
     # ---------- variables ----------
     VA, VB = flat(load_vars(Path(ra), SA)), flat(load_vars(Path(rb), SB))
@@ -287,7 +306,7 @@ def main():
                  "status": "only_a" if k not in VB else "only_b" if k not in VA else "changed"}
                 for k in sorted(set(VA) | set(VB)) if VA.get(k) != VB.get(k)]
     with open(out / "variables_compare.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["key", "a", "b", "status"]); w.writeheader(); w.writerows(var_rows)
+        w = safeio.DictWriter(f, fieldnames=["key", "a", "b", "status"]); w.writeheader(); w.writerows(var_rows)
 
     # ---------- metrics ----------
     def m(S):
@@ -308,18 +327,18 @@ def main():
         met.append({"metric": k, "a": x, "b": y,
                     "delta": (y - x) if isinstance(x, (int, float)) and isinstance(y, (int, float)) else ""})
     with open(out / "metrics_compare.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["metric", "a", "b", "delta"]); w.writeheader(); w.writerows(met)
+        w = safeio.DictWriter(f, fieldnames=["metric", "a", "b", "delta"]); w.writeheader(); w.writerows(met)
 
     # ---------- commits (only when both sides share git history) ----------
     def git(root, *args):
-        r = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
+        r = sh(["git", "-C", str(root), *args])
         return r.stdout.strip() if r.returncode == 0 else None
     sha_a, sha_b = git(ra, "rev-parse", "HEAD"), git(rb, "rev-parse", "HEAD")
     commit_rows, ahead_behind = [], None
     if sha_a and sha_b and sha_a != sha_b:
         # Work in a repo that has both commits. Only our own clones under --work are ever fetched into;
         # a user's local repo is read, never written.
-        under_work = lambda r: str(Path(r).resolve()).startswith(str(work.resolve()))
+        under_work = lambda r: safeio.inside(r, work)
         scratch = None
         for repo_dir, other in ((rb, ra), (ra, rb)):
             other_sha = sha_a if other is ra else sha_b
@@ -336,7 +355,7 @@ def main():
                     commit_rows.append({"side": side, "commit": h, "date": d, "author": au, "subject": subj})
             ahead_behind = (sum(r["side"] == "only_a" for r in commit_rows), sum(r["side"] == "only_b" for r in commit_rows))
     with open(out / "commits_compare.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["side", "commit", "date", "author", "subject"]); w.writeheader(); w.writerows(commit_rows)
+        w = safeio.DictWriter(f, fieldnames=["side", "commit", "date", "author", "subject"]); w.writeheader(); w.writerows(commit_rows)
 
     # ---------- digest ----------
     cnt = lambda st: sum(1 for r in rows if r["status"] == st)
@@ -357,7 +376,7 @@ def main():
     md += [f"| {r['metric']} | {r['a']} | {r['b']} | {r['delta']} |" for r in met if r["a"] != r["b"]]
     def lst(title, items, n=25):
         if items:
-            md.extend(["", f"## {title} ({len(items)})"] + [f"- {x}" for x in items[:n]] + ([f"- … see CSV"] if len(items) > n else []))
+            md.extend(["", f"## {title} ({len(items)})"] + [f"- {x}" for x in items[:n]] + (["- … see CSV"] if len(items) > n else []))
     lst("Only in A (missing from B)", [f"`{r['path_a']}` {r['title']}" for r in rows if r["status"] == "only_a"])
     lst("Only in B (new in B)", [f"`{r['path_b']}` {r['title']}" for r in rows if r["status"] == "only_b"])
     lst("Renamed/moved", [f"`{r['path_a']}` → `{r['path_b']}` (sim {r['similarity']})" for r in rows if r["status"] == "renamed"])

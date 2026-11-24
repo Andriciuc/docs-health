@@ -26,6 +26,9 @@ import argparse, csv, html, re, sys
 from datetime import date
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import safeio
+
 
 # ---------- Markdown (subset) ----------
 
@@ -36,7 +39,7 @@ def link(m):
     """Render [text](url) only for http(s), mailto, anchors and relative paths; anything else
     (javascript:, data:, ...) stays as plain text. The URL is attribute-escaped."""
     url = html.unescape(m.group(2))
-    if not SAFE_URL.match(url) or ":" in url.split("/")[0] and not url.lower().startswith(("http://", "https://", "mailto:")):
+    if not SAFE_URL.match(url) or (":" in url.split("/")[0] and not url.lower().startswith(("http://", "https://", "mailto:"))):
         return m.group(0)
     return '<a href="%s" rel="noopener noreferrer">%s</a>' % (html.escape(url, quote=True), m.group(1))
 
@@ -140,7 +143,7 @@ def csv_table(path, tid, max_rows):
     t += ['<th onclick="sortT(this)">%s</th>' % html.escape(c) for c in head]
     t.append("</tr></thead><tbody>")
     for r in shown:
-        t.append("<tr>%s</tr>" % "".join("<td>%s</td>" % html.escape(c) for c in r))
+        t.append("<tr>%s</tr>" % "".join("<td>%s</td>" % html.escape(safeio.uncell(c)) for c in r))
     t.append("</tbody></table></div>")
     note = "%d rows" % len(body)
     if len(shown) < len(body):
@@ -186,8 +189,8 @@ def md_order(p):
 def build(dirs, title, max_rows):
     reports, tables, sources = [], [], []
     multi = len(dirs) > 1
-    for d in dirs:
-        d = Path(d)
+    for d_arg in dirs:
+        d = Path(d_arg)
         sources.append(str(d))
         label = (d.name + "/") if multi else ""
         for p in sorted(d.glob("*.md"), key=md_order):
@@ -202,9 +205,9 @@ def build(dirs, title, max_rows):
     nav = ["<h2>Reports</h2><ul>"] + ['<li><a href="#%s">%s</a></li>' % (s, html.escape(t)) for s, t, _, _ in reports] + ["</ul>"]
     nav += ["<h2>Data</h2><ul>"] + ['<li><a href="#%s-s">%s (%d)</a></li>' % (t, html.escape(n), c) for t, n, c, _ in tables] + ["</ul>"]
     main = []
-    for sid, t, p, body in reports:
+    for sid, _t, p, body in reports:
         main.append('<section id="%s"><p class="src">Source: <code>%s</code></p>%s</section>' % (sid, html.escape(p.name), body))
-    for tid, name, n, table in tables:
+    for tid, name, _n, table in tables:
         main.append('<section id="%s-s"><h2>Data: %s</h2><p class="src">Click a header to sort. '
                     '<input type="text" placeholder="Filter rows" oninput="filt(this,\'%s\')" onkeyup="filt(this,\'%s\')"></p>%s</section>'
                     % (tid, html.escape(name), tid, tid, table))

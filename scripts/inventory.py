@@ -15,9 +15,12 @@ Writes to --out (default ./docs-inventory):
 
 Stdlib + PyYAML only. Read-only on the repo.
 """
-import argparse, csv, fnmatch, hashlib, json, os, re, subprocess, sys, time
+import argparse, fnmatch, hashlib, json, os, re, subprocess, sys, time
 from collections import defaultdict
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import safeio
 
 try:
     import yaml
@@ -40,18 +43,31 @@ def load_yaml(path):
     if not yaml:
         return {}
     try:
+        if Path(path).stat().st_size > safeio.MAX_BYTES:
+            raise ValueError(f"larger than {safeio.MAX_BYTES} bytes")
         with open(path, encoding="utf-8") as f:
-            return yaml.load(f, Loader=_Loader) or {}
-    except Exception as e:
+            return yaml.load(f, Loader=_Loader) or {}  # nosec B506 - _Loader subclasses SafeLoader
+    except (OSError, ValueError, yaml.YAMLError) as e:
         print(f"warn: cannot parse {path}: {e}", file=sys.stderr)
         return {}
 
-def load_config(path):
-    """Load an MkDocs config, resolving INHERIT (child keys override; nav replaced)."""
+def load_config(path, root=None, depth=0):
+    """Load an MkDocs config, resolving INHERIT (child keys override; nav replaced).
+    INHERIT must stay inside root and is followed at most 10 levels (stops cycles)."""
+    root = root or Path(path).parent
     cfg = load_yaml(path)
-    parent = cfg.get("INHERIT") if isinstance(cfg, dict) else None
+    if not isinstance(cfg, dict):
+        return {}
+    parent = cfg.get("INHERIT")
     if parent:
-        base = load_config((Path(path).parent / parent).resolve())
+        target = safeio.contained(Path(path).parent, parent)
+        if target is None or not safeio.inside(target, root):
+            safeio.warn(f"ignoring INHERIT {parent!r} in {path}: outside the repo")
+            return cfg
+        if depth >= 10:
+            safeio.warn(f"ignoring INHERIT in {path}: more than 10 levels (cycle?)")
+            return cfg
+        base = load_config(target.resolve(), root, depth + 1)
         merged = dict(base)
         for k, v in cfg.items():
             if isinstance(v, dict) and isinstance(merged.get(k), dict):
@@ -118,8 +134,8 @@ def split_front_matter(text):
             fm = {}
             if yaml:
                 try:
-                    fm = yaml.load(m.group(1), Loader=_Loader) or {}
-                except Exception:
+                    fm = yaml.load(m.group(1), Loader=_Loader) or {}  # nosec B506 - SafeLoader subclass
+                except (ValueError, yaml.YAMLError):
                     fm = {"_unparseable": True}
             return fm if isinstance(fm, dict) else {}, text[m.end():]
     return {}, text
@@ -199,10 +215,12 @@ def git_history(repo, subdir, bulk=30, skip_subject=None):
     (reformat, rename, link sweep) are ignored for age so they don't fake freshness."""
     try:
         shallow = subprocess.run(["git", "-C", str(repo), "rev-parse", "--is-shallow-repository"],
-                                 capture_output=True, text=True).stdout.strip() == "true"
+                                 capture_output=True, text=True, check=False, env=safeio.GIT_ENV,
+                                 timeout=safeio.GIT_TIMEOUT).stdout.strip() == "true"
         out = subprocess.run(["git", "-C", str(repo), "log", "--format=__C__%ct %s", "--name-only",
-                              "--", str(subdir)], capture_output=True, text=True, check=True).stdout
-    except Exception:
+                              "--", str(subdir)], capture_output=True, text=True, check=True,
+                             env=safeio.GIT_ENV, timeout=safeio.GIT_TIMEOUT).stdout
+    except (OSError, subprocess.SubprocessError):
         return {}, {}, None, 0
     commits, cur = [], None
     for ln in out.splitlines():
@@ -241,11 +259,11 @@ def main():
     a = ap.parse_args()
 
     repo = Path(a.repo).resolve()
-    cfg_paths = [repo / c for c in a.config] if a.config else sorted(
-        [p for p in repo.glob("mkdocs*.yml")] + [p for p in repo.glob("*/mkdocs*.yml")])
+    cfg_paths = [repo / c for c in a.config] if a.config else (
+        safeio.files(repo, "mkdocs*.yml") + safeio.files(repo, "*/mkdocs*.yml"))
     configs = {}
     for cp in cfg_paths:
-        c = load_config(cp)
+        c = load_config(cp, repo)
         if c:
             configs[str(cp.relative_to(repo))] = (cp, c)
 
@@ -256,7 +274,9 @@ def main():
     elif configs:
         cp, c = next(iter(configs.values()))
         cfg_root = cp.parent
-        docs_dir = cfg_root / (c.get("docs_dir") or "docs")
+        docs_dir = cfg_root / str(c.get("docs_dir") or "docs")
+        if not safeio.inside(docs_dir, repo):
+            sys.exit(f"docs_dir {c.get('docs_dir')!r} in {cp} points outside the repo")
     else:
         cfg_root, docs_dir = repo, repo
     site_url, dir_urls = "", True
@@ -271,19 +291,21 @@ def main():
         sys.exit(f"docs dir not found: {docs_dir}")
 
     # variables (mkdocs-macros include_yaml + extra)
-    known_vars = set(["config", "page", "nav", "base_url", "extra", "git", "environment", "macros_info", "now", "fix_url"])
+    known_vars = {"config", "page", "nav", "base_url", "extra", "git", "environment", "macros_info", "now", "fix_url"}
     var_files = []
     for _, (cp, c) in configs.items():
         known_vars |= set((c.get("extra") or {}).keys())
         mac = plugin_conf(c, "macros")
         if mac is not None:
-            for f in mac.get("include_yaml") or []:
-                f = list(f.values())[0] if isinstance(f, dict) else f
-                var_files.append(cp.parent / f)
+            for entry in mac.get("include_yaml") or []:
+                f = next(iter(entry.values()), None) if isinstance(entry, dict) else entry
+                vf = safeio.contained(cp.parent, f)
+                if vf is not None and safeio.inside(vf, repo):
+                    var_files.append(vf)
     if not var_files and (cfg_root / "variables.yml").exists():
         var_files.append(cfg_root / "variables.yml")
     for vf in var_files:
-        if vf.exists():
+        if safeio.readable(vf, repo):
             known_vars |= set((load_yaml(vf) or {}).keys())
     has_macros = any(plugin_conf(c, "macros") is not None for _, c in configs.values())
 
@@ -292,11 +314,12 @@ def main():
         sc = md_ext_conf(c, "pymdownx.snippets")
         if sc and sc.get("base_path"):
             bp = sc["base_path"]
-            snip_bases += [cfg_root / b for b in (bp if isinstance(bp, list) else [bp])]
+            snip_bases += [cfg_root / b for b in (bp if isinstance(bp, list) else [bp])
+                           if safeio.inside(cfg_root / str(b), repo)]
 
     # nav
     nav_rows, nav_sets = [], {}
-    for name, (cp, c) in configs.items():
+    for name, (_cp, c) in configs.items():
         entries = walk_nav(c.get("nav"))
         nav_sets[name] = {}
         for i, e in enumerate(entries):
@@ -310,7 +333,7 @@ def main():
                 nav_sets[name][path] = e
 
     # pages
-    md_files = sorted(p for p in docs_dir.rglob("*.md") if ".git" not in p.parts)
+    md_files = safeio.rglob(docs_dir, "*.md")
     last, count, shallow, bulk_skipped = git_history(repo, docs_dir.relative_to(repo) if docs_dir != repo else ".", a.bulk_commit_files, a.ignore_commit_subject)
     now = time.time()
     pages, link_rows, par_index = [], [], defaultdict(list)
@@ -359,7 +382,7 @@ def main():
         for s in snips:
             found = None
             for b in snip_bases + [p.parent, docs_dir]:
-                if (b / s).exists():
+                if safeio.inside(b / s, repo) and (b / s).exists():
                     found = (b / s).resolve()
                     break
             if found:
@@ -377,7 +400,7 @@ def main():
         for para in paragraphs(pp["prose"]):
             norm = re.sub(r"\s+", " ", para.lower())
             if len(norm.split()) >= a.min_dup_words:
-                par_index[hashlib.sha1(norm.encode()).hexdigest()[:12]].append((rel, para[:160].replace("\n", " ")))
+                par_index[hashlib.sha1(norm.encode(), usedforsecurity=False).hexdigest()[:12]].append((rel, para[:160].replace("\n", " ")))
 
         git_rel = str(p.relative_to(repo)).replace(os.sep, "/")
         ts = last.get(git_rel)
@@ -471,7 +494,7 @@ def main():
     def wcsv(name, rows, fields=None):
         fields = fields or (list(rows[0].keys()) if rows else ["empty"])
         with open(out / name, "w", newline="", encoding="utf-8") as f:
-            w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
+            w = safeio.DictWriter(f, fieldnames=fields, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
     wcsv("pages.csv", pages)
     wcsv("nav.csv", nav_rows, ["config", "order", "depth", "section", "title", "path", "is_section", "external", "exists"])
     wcsv("links.csv", link_rows, ["page", "kind", "target", "scope", "status"])

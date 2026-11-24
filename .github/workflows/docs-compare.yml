@@ -63,6 +63,7 @@ on:
 jobs:
   compare:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     outputs:
@@ -196,6 +197,7 @@ jobs:
     needs: compare
     if: ${{ inputs.open_issue }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # No permissions key: this job inherits what the caller grants, so callers that
     # don't open issues never have to grant issues: write. Callers that do must.
     steps:

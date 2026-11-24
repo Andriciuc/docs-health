@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FIX = Path(__file__).resolve().parent / "fixtures" / "meta"
 sys.path.insert(0, str(ROOT / "scripts"))
-import metadata_check as mc  # noqa: E402
+import metadata_check as mc
 
 
 class MetadataCheckTest(unittest.TestCase):

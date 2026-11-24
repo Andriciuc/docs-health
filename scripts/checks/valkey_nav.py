@@ -18,9 +18,12 @@ compared with "-" and "_" treated as equal, as the website template does). Statu
 winning level), skipped (SYSCMD or no doc page). Also lists nav entries that
 match no command, and topics listed zero or several times.
 """
-import argparse, csv, sys
+import argparse, sys
 from collections import Counter, defaultdict
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import safeio
 
 import yaml
 
@@ -42,9 +45,10 @@ def nav_entries(repo):
                 if isinstance(t, dict):
                     for c in t.get("commands") or []:
                         refs.append((str(c), f"{where}/{name}"))
-    walk(yaml.safe_load((repo / "nav.yml").read_text(encoding="utf-8")), "nav.yml")
-    for f in sorted((repo / "modules-nav").glob("*.yml")):
-        walk(yaml.safe_load(f.read_text(encoding="utf-8")), f"modules-nav/{f.name}")
+    if safeio.readable(repo / "nav.yml", repo):
+        walk(yaml.safe_load(safeio.read_text(repo / "nav.yml")), "nav.yml")
+    for f in safeio.files(repo, "modules-nav/*.yml"):
+        walk(yaml.safe_load(safeio.read_text(f)), f"modules-nav/{f.name}")
     return refs, topics
 
 
@@ -55,8 +59,7 @@ def norm(s):
 def main(repo, items_csv, out):
     repo, out = Path(repo), Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    with open(items_csv, newline="", encoding="utf-8") as fh:
-        cmds = [r for r in csv.DictReader(fh) if r["kind"] == "command"]
+    cmds = [r for r in safeio.read_csv(items_csv) if r["kind"] == "command"]
     refs, topics = nav_entries(repo)
     by_level = {"name": defaultdict(list), "container": defaultdict(list), "group": defaultdict(list)}
     for ref, where in refs:
@@ -97,7 +100,7 @@ def main(repo, items_csv, out):
         hit = (("group", ref) in used) if level else (("name", norm(ref)) in used or ("container", norm(ref)) in used)
         if not hit:
             unmatched.append((ref, where))
-    topic_files = {p.stem for p in (repo / "topics").glob("*.md")} - {"index"}
+    topic_files = {p.stem for p in safeio.files(repo, "topics/*.md")} - {"index"}
     listed = {t for t, n in topics.items() if n > 0}
     landings = {t for t, n in topics.items() if n == 0}
     not_listed = sorted(topic_files - listed - landings)
@@ -105,7 +108,7 @@ def main(repo, items_csv, out):
     missing = sorted(t for t in topics if t not in topic_files)
 
     with open(out / "nav_coverage.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w = safeio.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
     cnt = Counter(r["status"] for r in rows)
@@ -120,9 +123,9 @@ def main(repo, items_csv, out):
     md += ["", "## topics", "", f"- not listed in any menu: {not_listed or 'none'}",
            f"- listed more than once: {multi or 'none'}", f"- listed but no file: {missing or 'none'}"]
     gj = repo / "groups.json"
-    if gj.exists():
+    if safeio.readable(gj, repo):
         import json
-        known = {k.replace("-", "_") for k in json.loads(gj.read_text(encoding="utf-8"))}
+        known = {k.replace("-", "_") for k in json.loads(safeio.read_text(gj))}
         code_groups = sorted({c["group"] for c in cmds if c["group"]})
         unknown = [g for g in code_groups if g.replace("-", "_") not in known]
         md += ["", "## groups.json (command group labels on the website)", "",
