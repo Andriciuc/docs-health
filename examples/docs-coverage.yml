@@ -23,7 +23,7 @@ jobs:
             code_ref: unstable
           - name: docs vs latest release
             code_ref: latest-tag
-    uses: Andriciuc/docs-health/.github/workflows/docs-coverage.yml@main   # pin to a tag or commit SHA
+    uses: Andriciuc/docs-health/.github/workflows/docs-coverage.yml@v1   # or @v1.0.0, or a commit SHA
     with:
       # Built-in profile name, or your own: ./.github/docs-health/myproject.yml in this repo.
       # How to write one: https://andriciuc.github.io/docs-health/checks/write-a-profile/
@@ -35,4 +35,4 @@ jobs:
       name: ${{ matrix.name }}
       open_issue: false    # true opens one issue per pair in this repo
       assignee: ""         # your GitHub login, if open_issue is true
-      skill_ref: main      # keep in step with the @ref above
+      skill_ref: v1        # keep in step with the @ref above

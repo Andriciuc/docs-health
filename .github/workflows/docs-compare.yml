@@ -56,7 +56,7 @@ on:
       skill_ref:
         description: Pin to a tag or commit for reproducible runs
         type: string
-        default: main
+        default: v1
 
 # No top-level permissions: the caller's grant is the ceiling. Jobs narrow it.
 

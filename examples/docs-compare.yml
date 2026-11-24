@@ -23,7 +23,7 @@ jobs:
   # One-off pair from the Run workflow form.
   custom:
     if: ${{ github.event_name == 'workflow_dispatch' }}
-    uses: Andriciuc/docs-health/.github/workflows/docs-compare.yml@main   # pin to a tag or commit SHA
+    uses: Andriciuc/docs-health/.github/workflows/docs-compare.yml@v1   # or @v1.0.0, or a commit SHA
     with:
       a_repo: valkey-io/valkey-doc
       a_ref: ${{ inputs.a_ref }}
@@ -42,7 +42,7 @@ jobs:
             a_ref: main
             b_repo: your-login/valkey-doc
             b_ref: main
-    uses: Andriciuc/docs-health/.github/workflows/docs-compare.yml@main
+    uses: Andriciuc/docs-health/.github/workflows/docs-compare.yml@v1
     with:
       a_repo: ${{ matrix.a_repo }}
       a_ref: ${{ matrix.a_ref }}

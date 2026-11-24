@@ -21,7 +21,7 @@ Refs accept a branch, a tag, a commit, or `latest-tag` (the newest `X.Y.Z` / `vX
 | `name` | derived | Label for titles and artifact names |
 | `open_issue`, `assignee` | `false`, empty | One issue per run in the calling repo |
 | `retention_days` | `30` | Artifact retention (public repos allow up to 90) |
-| `skill_repo`, `skill_ref` | `Andriciuc/docs-health`, `main` | Where the scripts come from; pin `skill_ref` |
+| `skill_repo`, `skill_ref` | `Andriciuc/docs-health`, `v1` | Where the scripts come from. Keep `skill_ref` equal to the `@ref` you call |
 
 ## docs-compare: doc set A vs doc set B
 
@@ -46,19 +46,24 @@ jobs:
         include:
           - { name: docs vs unstable,       code_ref: unstable }
           - { name: docs vs latest release, code_ref: latest-tag }
-    uses: Andriciuc/docs-health/.github/workflows/docs-coverage.yml@<tag-or-sha>
+    uses: Andriciuc/docs-health/.github/workflows/docs-coverage.yml@v1
     with:
       profile: valkey                 # or ./.github/docs-health/myproject.yml in your repo
       docs_repo: valkey-io/valkey-doc
       code_repo: valkey-io/valkey
       code_ref: ${{ matrix.code_ref }}
       name: ${{ matrix.name }}
-      skill_ref: <same tag-or-sha>
+      skill_ref: v1
 ```
 
 Notes:
 
-- Pin `@<tag-or-sha>` and `skill_ref` to the same value. `@main` means every change here reaches your runs without review.
+- Choose a version and set `skill_ref` to the same value as the `@ref` you call:
+    - `@v1`: follows the latest 1.x release. You get fixes, never breaking changes. This is the default `skill_ref`.
+    - `@v1.0.0`: a fixed release. Update when you choose.
+    - `@<commit-sha>`: the strictest pin. A tag can be moved; a SHA cannot.
+    - `@main`: unreleased work. Every change here reaches your runs without review.
+- Releases and changes: [GitHub releases](https://github.com/Andriciuc/docs-health/releases).
 - The calling workflow needs `contents: read`, plus `issues: write` only if `open_issue` is true.
 - Forks have Issues off by default, so turn them on or leave `open_issue: false`.
 - Organizations may only allow actions from their own repos. An admin has to allow `Andriciuc/docs-health`.
