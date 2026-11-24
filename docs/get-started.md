@@ -7,7 +7,7 @@ description: "Install docs-health in Claude Code or the Claude apps, or run its 
 
 The repo root is the skill folder, since `SKILL.md` sits at the top.
 
-**Claude Code (personal skill)**
+### Claude Code (personal skill)
 
 ```bash
 git clone https://github.com/Andriciuc/docs-health.git ~/.claude/skills/docs-health
@@ -15,7 +15,7 @@ git clone https://github.com/Andriciuc/docs-health.git ~/.claude/skills/docs-hea
 
 To install it for a single project instead, clone it into that project's `.claude/skills/docs-health/`.
 
-**Claude apps (claude.ai, desktop)**
+### Claude apps (claude.ai, desktop)
 
 Build a `.skill` file whose top-level folder is the skill, then upload it from the Skills section of Claude's settings:
 
@@ -23,11 +23,11 @@ Build a `.skill` file whose top-level folder is the skill, then upload it from t
 git archive --format=zip --prefix=docs-health/ -o docs-health.skill HEAD SKILL.md README.md LICENSE SECURITY.md agents references scripts profiles docs
 ```
 
-The `.skill` file is a ZIP with the skill folder at the top; the tests, fixtures and workflows stay in the repo. When you change the skill here, upload the file again: the uploaded copy doesn't follow this repo.
+The `.skill` file is a ZIP with the skill folder at the top; the tests, fixtures and workflows stay in the repo. The uploaded copy doesn't track this repo, so upload a new file after each change.
 
-Renamed from `docs-architecture`: if you installed the old name, delete it from your skills so Claude doesn't see two copies. GitHub redirects the old repo URL.
+docs-health used to be called `docs-architecture`. If you installed it under the old name, delete that copy so Claude doesn't see two skills. GitHub redirects the old repo URL.
 
-**Requirements for the scripts**
+## Requirements for the scripts
 
 - Python 3.7+
 - PyYAML (`pip install pyyaml`)

@@ -3,7 +3,7 @@ title: "Check docs against code"
 description: "Find undocumented commands and settings, pages for removed items and deprecated names still taught, using a YAML profile."
 ---
 
-Code is the list of things that should be documented. A **profile** (a small YAML file) says where those things are in the code and what each one needs in the docs. `profile_coverage.py` extracts them and checks the docs. Valkey example, with `valkey` and `valkey-doc` checked out side by side:
+This check uses the code as the list of things the docs should cover. A profile (a small YAML file) says where those items are declared and what each one needs in the docs. `profile_coverage.py` extracts the items and checks the docs for them. Valkey example, with `valkey` and `valkey-doc` checked out side by side:
 
 ```bash
 python scripts/profile_coverage.py valkey --code ../valkey --docs ../valkey-doc --out cov

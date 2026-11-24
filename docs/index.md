@@ -4,11 +4,11 @@ description: "Claude skill and GitHub workflows that audit docs-as-code sets: st
 
 # docs-health: health checks for docs-as-code
 
-A Claude skill and GitHub workflow that treats a docs-as-code set as a dataset. It inventories every page, measures freshness, links, nav coverage and duplication, checks the docs against the code they describe and audits SEO metadata, then turns the numbers into a ranked review. A separate reviewer agent then checks that review.
+docs-health is a check-up for documentation. It reads your doc pages and the code they describe, then lists what's missing, outdated, broken or hard to find. A person decides what to fix.
 
-It's built for MkDocs and plain-Markdown doc repos, such as Percona Distribution for PostgreSQL, pg_tde and valkey-doc. The scripts are also usable on their own, without Claude.
+It's a Claude skill and a set of GitHub workflows that treat a docs-as-code set as a dataset. The skill inventories every page, measures freshness, links, nav coverage and duplication, checks the docs against the code and audits SEO metadata, then ranks the findings in a review that a separate reviewer agent checks.
 
-In short: docs-health is a check-up for documentation. It reads your doc pages and the code they describe, then lists what's missing, outdated, broken or hard to find. A person decides what to fix.
+It's built for MkDocs and plain-Markdown doc repos, such as Percona Distribution for PostgreSQL, pg_tde and valkey-doc. You can also run the scripts without Claude.
 
 ## What it does
 
@@ -23,7 +23,7 @@ In short: docs-health is a check-up for documentation. It reads your doc pages a
 | "Run this every month" / "compare `unstable` and the latest tag on GitHub" | Reusable GitHub workflows for coverage and compare, with your own pairs: a run summary, a `report.html` artifact, and optionally one issue per pair. See [GitHub workflows](workflows.md) |
 | "Check our titles and descriptions" / "SEO pass" | A separate metadata report: whether the build emits titles and descriptions, missing, duplicate and UI-label titles, H1 problems, boilerplate prefixes, and proposed rewrites for the top pages, checked against Google Search Central rules |
 
-Every audit ends with an **optimization review** from a second agent that didn't run the scan. It confirms or disputes findings, lists quick wins, and suggests better scan flags.
+Every audit ends with an optimization review from a second agent that didn't run the scan. It confirms or disputes findings, lists quick wins, and suggests better scan flags.
 
 ## Where to start
 
