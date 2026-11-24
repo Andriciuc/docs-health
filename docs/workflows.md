@@ -3,7 +3,7 @@ title: "GitHub workflows"
 description: "Run docs-vs-code coverage and doc set comparisons on GitHub Actions, monthly or on demand, with pairs you define."
 ---
 
-Two reusable workflows, which anyone can call from their own repo. You define the pairs: which docs, which code or which second doc set, and which refs. Both are deterministic, with no AI step and no PRs. Each run produces:
+docs-health has two reusable workflows that anyone can call from their own repo. You define the pairs: which docs, which code or second doc set, and which refs. Both workflows are deterministic. They don't call an AI model and don't open PRs. Each run produces:
 
 - the report in the run summary;
 - an artifact with `report.html` (everything in one page) and the CSVs;

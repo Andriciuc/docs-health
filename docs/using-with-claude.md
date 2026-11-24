@@ -15,10 +15,10 @@ Name the repo, and the branch or path. The skill analyzes only the sources you n
 Claude will:
 
 1. Run the inventory (or the comparison) before giving any opinion.
-2. Open the files behind each finding to verify it. The heuristics produce false positives.
+2. Open the files behind each finding to verify it, because the heuristics produce false positives.
 3. Write a report with a summary, findings, recommendations, a proposed structure (IA asks only), migration steps (only if pages move), and data caveats.
 4. Run the optimization review as a separate agent and attach its report.
 5. Compile the report, the review, the summaries and the CSVs into one HTML page (`report.html`).
-6. Optionally, run a separate metadata and SEO pass with its own report. It runs when you ask for it, and Claude offers it after an audit.
+6. Optionally, run a separate metadata and SEO pass with its own report. Claude runs it when you ask and offers it after an audit.
 
 Say "no review" or "just the numbers" to skip step 4.

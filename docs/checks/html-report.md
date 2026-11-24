@@ -3,7 +3,7 @@ title: "HTML report"
 description: "Compile a scan folder's Markdown reports and CSV data into one self-contained HTML page with sortable, filterable tables."
 ---
 
-Every scan folder can be compiled into one self-contained HTML page: all Markdown reports rendered (main report first), and every CSV/TSV as a table you can sort by clicking a header and filter by typing.
+`html_report.py` compiles a scan folder into one self-contained HTML page: all Markdown reports rendered (main report first), and every CSV/TSV as a table you can sort by clicking a header and filter by typing.
 
 ```bash
 python scripts/html_report.py inv/                                   # writes inv/report.html

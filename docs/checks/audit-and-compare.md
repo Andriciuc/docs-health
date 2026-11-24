@@ -48,4 +48,4 @@ Refs that start with `-` or contain `..` are refused, and so are repo names outs
 python scripts/join_analytics.py inv/pages.csv ga4-pages.csv --out inv/joined.csv
 ```
 
-URLs are normalized, and versioned prefixes (`/postgresql/19/apt.html`) match by suffix. Rows that match no page go to `unmatched.csv`. These are redirect candidates.
+URLs are normalized, and versioned prefixes (`/postgresql/19/apt.html`) match by suffix. Rows that match no page go to `unmatched.csv`; treat them as redirect candidates.
