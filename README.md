@@ -14,6 +14,7 @@ It's built for MkDocs and plain-Markdown doc repos, such as Percona Distribution
 | "Define topic types / front matter / reuse" | Content model: types, templates, front matter schema, snippet and variable strategy |
 | "Which pages matter most?" with a GA4 or Search Console export | Analytics joined to the inventory, a traffic × issue priority list, and dead URLs that need redirects |
 | "Check the docs against the code" (e.g. valkey-doc vs valkey) | Commands and config options with no docs, pages for removed items, missing Reply sections, deprecated names still taught, menu and group gaps |
+| "Run this every month" / "compare `unstable` and the latest tag on GitHub" | Reusable GitHub workflows for coverage and compare, with your own pairs: a run summary, a `report.html` artifact, and optionally one issue per pair. See [Running it as a GitHub workflow](#running-it-as-a-github-workflow) |
 | "Check our titles and descriptions" / "SEO pass" | A separate metadata report: whether the build emits titles and descriptions, missing, duplicate and UI-label titles, H1 problems, boilerplate prefixes, and proposed rewrites for the top pages, checked against Google Search Central rules |
 
 Every audit ends with an **optimization review** from a second agent that didn't run the scan. It confirms or disputes findings, lists quick wins, and suggests better scan flags.
@@ -150,6 +151,8 @@ python scripts/compare.py valkey-io/valkey-doc@main /path/to/local/valkey-doc --
 
 A is the reference and B is the side being checked. Each source can be `owner/repo@ref`, a GitHub URL, a local path (working tree as-is), or `/local/path@ref`. Local repos are never modified. The output includes `pages_compare.csv`, `nav_compare.csv`, `issues_compare.csv`, `variables_compare.csv`, `commits_compare.csv`, `metrics_compare.csv` and `compare.md`.
 
+Refs that start with `-` or contain `..` are refused, and so are repo names outside `owner/repo`. To run comparisons on a schedule, use the `docs-compare` workflow.
+
 ### Metadata and SEO check
 
 ```bash
@@ -285,7 +288,7 @@ The workflows read public repos, run the scripts in this repo, and only write wh
 
 ## Contributing
 
-Issues and PRs are welcome. Keep each change type in its own commit (scripts, references, skill instructions). For script changes, include before/after numbers from a real repo.
+Issues and PRs are welcome. Every PR runs CI (`ci.yml`): the unit and security tests, plus a smoke run of both reusable workflows against valkey-doc and valkey. Keep each change type in its own commit (scripts, references, skill instructions). For script changes, include before/after numbers from a real repo.
 
 ## License
 
