@@ -21,7 +21,7 @@ Then ask: `/docs-health audit valkey-io/valkey-doc main for gaps and stale pages
 **Docs vs code from the command line** (built-in Valkey profile):
 
 ```bash
-pip install pyyaml
+pip install -r requirements-run.txt   # PyYAML, pinned
 python scripts/profile_coverage.py valkey --code ../valkey --docs ../valkey-doc --out cov
 python scripts/html_report.py cov          # cov/report.html
 ```

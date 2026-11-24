@@ -30,7 +30,7 @@ docs-health used to be called `docs-architecture`. If you installed it under the
 ## Requirements for the scripts
 
 - Python 3.7+
-- PyYAML (`pip install pyyaml`)
+- PyYAML (`pip install -r requirements-run.txt`)
 - git (page ages and commit counts come from history)
 - Optional: pandas, for slicing the CSVs
 
