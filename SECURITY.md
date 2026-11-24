@@ -5,7 +5,7 @@
 | Job | Token permissions | Reads | Writes |
 |---|---|---|---|
 | `coverage` / `compare` | `contents: read` | This repo's scripts, plus the repos and refs you name | Run summary, a workflow artifact |
-| `issue` (only when `open_issue: true`) | `issues: write` | The artifact from the job above | One issue in the calling repo |
+| `issue` (only when `open_issue: true`) | Whatever the caller grants; needs `issues: write` | The artifact from the job above | One issue in the calling repo |
 
 - No secrets are needed or read. The default `GITHUB_TOKEN` is the only credential, and the analysis job's copy can only read.
 - Checkouts don't keep credentials (`persist-credentials: false`), so the scripts can't reuse the token.

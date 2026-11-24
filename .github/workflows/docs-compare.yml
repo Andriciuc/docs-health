@@ -6,8 +6,8 @@
 #
 # Security: inputs reach shell steps only through env vars; extra inventory
 # arguments are split with shlex and passed as an argv list (no shell); actions
-# are pinned to commit SHAs; checkouts don't persist credentials; only the
-# optional issue job gets issues: write.
+# are pinned to commit SHAs; checkouts don't persist credentials; the analysis job
+# is read-only; the optional issue job inherits the caller's grant (needs issues: write).
 name: docs-compare
 
 on:
@@ -58,7 +58,7 @@ on:
         type: string
         default: main
 
-permissions: {}
+# No top-level permissions: the caller's grant is the ceiling. Jobs narrow it.
 
 jobs:
   compare:
@@ -196,8 +196,8 @@ jobs:
     needs: compare
     if: ${{ inputs.open_issue }}
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
+    # No permissions key: this job inherits what the caller grants, so callers that
+    # don't open issues never have to grant issues: write. Callers that do must.
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
