@@ -1,0 +1,77 @@
+site_name: docs-health
+site_description: "Health checks for docs-as-code sets: stale pages, link and nav gaps, docs-vs-code coverage and SEO metadata."
+site_url: https://andriciuc.github.io/docs-health/
+repo_url: https://github.com/Andriciuc/docs-health
+repo_name: Andriciuc/docs-health
+edit_uri: edit/main/docs/
+copyright: Apache License 2.0
+
+theme:
+  name: material
+  language: en
+  font: false                 # system fonts: no requests to Google Fonts
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - scheme: default         # "paper": warm off-white, see stylesheets/paper.css
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to paper mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+extra_css:
+  - stylesheets/paper.css
+
+markdown_extensions:
+  - tables
+  - admonition
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.inlinehilite
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Get started: get-started.md
+  - Using it with Claude: using-with-claude.md
+  - Checks:
+      - Audit and compare: checks/audit-and-compare.md
+      - Docs vs code: checks/docs-vs-code.md
+      - Write a profile: checks/write-a-profile.md
+      - Metadata and SEO: checks/metadata-seo.md
+      - HTML report: checks/html-report.md
+  - GitHub workflows: workflows.md
+  - Known limits: limits.md
+  - Security: security.md
+  - Contributing: contributing.md
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: info
+    unrecognized_links: warn

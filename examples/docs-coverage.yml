@@ -26,7 +26,7 @@ jobs:
     uses: Andriciuc/docs-health/.github/workflows/docs-coverage.yml@main   # pin to a tag or commit SHA
     with:
       # Built-in profile name, or your own: ./.github/docs-health/myproject.yml in this repo.
-      # How to write one: README, "Write your own profile".
+      # How to write one: https://andriciuc.github.io/docs-health/checks/write-a-profile/
       profile: valkey
       docs_repo: valkey-io/valkey-doc
       docs_ref: main
