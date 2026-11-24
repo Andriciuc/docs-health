@@ -16,6 +16,10 @@ description: "What the docs-health workflows can read and write, how inputs are 
 - Third-party actions are pinned to full commit SHAs, and Python dependencies to exact versions.
 - The scripts read Markdown, YAML and JSON from the repos you name. YAML is loaded with a safe loader. The HTML report escapes all text, and it only renders links for `http(s)`, `mailto`, anchors and relative paths; anything else stays plain text.
 - `compare.py` refuses git refs that could be read as options, and repo names outside `owner/repo`.
+- Files are only read if they resolve inside the folder being scanned. A symlink pointing outside it (for example to `~/.ssh` or `/proc/self/environ`) is skipped. So are `docs_dir`, `INHERIT`, snippet and variable paths in `mkdocs.yml` that point outside the repo, and expected page names containing `..`.
+- Files over 10 MB are skipped (`DOCS_HEALTH_MAX_FILE_BYTES` changes the limit), and `INHERIT` is followed at most 10 levels.
+- CSV cells starting with `=`, `+`, `-` or `@` get a leading `'`, so a spreadsheet shows them as text and doesn't run them as formulas. Numbers and plain command-line flags such as `--verbose` are left alone. The HTML report shows the original text.
+- git never prompts for credentials, every git call has a timeout, and the workflow jobs have `timeout-minutes`.
 
 ## Your side
 

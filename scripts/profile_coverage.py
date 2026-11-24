@@ -22,7 +22,7 @@ Safety: globs must be relative and stay inside the code/docs folders; templates
 only substitute {field} values (no expressions); checks come from a fixed list.
 Stdlib + PyYAML.
 """
-import argparse, csv, fnmatch, json, re, sys
+import argparse, json, re, sys
 from pathlib import Path
 
 import yaml
@@ -30,6 +30,7 @@ import yaml
 HERE = Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE / "checks")]
 import coverage  # noqa: E402
+import safeio  # noqa: E402
 
 FIELDS = ["kind", "id", "name", "aliases", "expected_page", "require_heading", "skip_reason",
           "source_path", "group", "container", "since", "deprecated_since", "replaced_by"]
@@ -64,12 +65,28 @@ def safe_glob(g):
     return g
 
 
+def check_regex(pattern, where):
+    if not isinstance(pattern, str):
+        raise ProfileError(f"{where}: pattern must be a string")
+    try:
+        re.compile(pattern)
+    except re.error as e:
+        raise ProfileError(f"{where}: invalid regex {pattern!r}: {e}") from e
+
+
 def load_profile(path):
-    data = yaml.safe_load(Path(path).read_text(encoding="utf-8-sig")) or {}
+    try:
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8-sig")) or {}
+    except (OSError, yaml.YAMLError) as e:
+        raise ProfileError(f"cannot read profile {path}: {e}") from e
     if not isinstance(data, dict) or not isinstance(data.get("items"), list) or not data["items"]:
         raise ProfileError("profile needs a non-empty 'items' list")
     for i, it in enumerate(data["items"]):
         where = f"items[{i}]"
+        if not isinstance(it, dict):
+            raise ProfileError(f"{where}: must be a mapping")
+        if not isinstance(it.get("files"), list):
+            raise ProfileError(f"{where}: files must be a list of globs")
         if it.get("source") not in SOURCES:
             raise ProfileError(f"{where}: source must be one of {SOURCES}")
         if not it.get("kind") or not re.fullmatch(r"[A-Za-z0-9_-]+", str(it["kind"])):
@@ -81,18 +98,27 @@ def load_profile(path):
         if it["source"] == "regex":
             if not it.get("pattern"):
                 raise ProfileError(f"{where}: regex source needs 'pattern'")
+            check_regex(it["pattern"], where)
             bad = [f for f in it.get("flags", []) if f not in REGEX_FLAGS]
             if bad:
                 raise ProfileError(f"{where}: unknown regex flags {bad} (use {list(REGEX_FLAGS)})")
         also = it.get("also_in")
         if also:
+            if not isinstance(also, dict) or not also.get("pattern"):
+                raise ProfileError(f"{where}.also_in: needs 'files' and 'pattern'")
+            check_regex(also["pattern"], f"{where}.also_in")
             for g in also.get("files", []):
                 safe_glob(g)
+        for j, rule in enumerate(it.get("skip_when") or []):
+            if not isinstance(rule, dict):
+                raise ProfileError(f"{where}.skip_when[{j}]: must be a mapping")
+            if "matches" in rule:
+                check_regex(rule["matches"], f"{where}.skip_when[{j}]")
     docs = data.get("docs") or {}
     for key in ("mention_globs", "exclude_globs", "ignore_globs"):
         for g in docs.get(key, []) or []:
             safe_glob(g)
-    for kind, g in (docs.get("page_globs") or {}).items():
+    for g in (docs.get("page_globs") or {}).values():
         safe_glob(g)
     allowed = set(CHECKS)
     unknown = [c for c in data.get("checks", []) or [] if c not in allowed]
@@ -148,7 +174,7 @@ def records(spec, code):
     """Yield (values, source_path) for one items entry."""
     files = []
     for g in spec["files"]:
-        files += [f for f in sorted(code.glob(g)) if f.is_file()]
+        files += safeio.files(code, g)
     seen = set()
     for f in files:
         if f in seen:
@@ -156,7 +182,7 @@ def records(spec, code):
         seen.add(f)
         rel = f.relative_to(code).as_posix()
         base = {"stem": f.stem, "path": rel, "file": f.name}
-        text = f.read_text(encoding="utf-8-sig", errors="replace")
+        text = safeio.read_text(f)
         if spec["source"] == "regex":
             flags = 0
             for name in spec.get("flags", ["MULTILINE"]):
@@ -179,11 +205,12 @@ def records(spec, code):
             rows = data if isinstance(data, list) else [data]   # a top-level list is one item per entry
         for row in rows:
             vals = dict(base)
+            item = row
             if spec.get("unwrap") == "single-key" and isinstance(row, dict) and len(row) == 1:
-                (key, row), = row.items()
+                (key, item), = row.items()
                 vals["key"] = key
-            if isinstance(row, dict):
-                for k, v in row.items():
+            if isinstance(item, dict):
+                for k, v in item.items():
                     vals.setdefault(k, v)
             yield vals, rel
 
@@ -199,17 +226,16 @@ def extract(profile, code):
         if also:
             also_names = set()
             for g in also.get("files", []):
-                for f in sorted(code.glob(g)):
-                    if f.is_file():
-                        t = f.read_text(encoding="utf-8-sig", errors="replace")
-                        also_names.update(m.group(1) for m in re.finditer(also["pattern"], t, re.M))
+                for f in safeio.files(code, g):
+                    t = safeio.read_text(f)
+                    also_names.update(m.group(1) for m in re.finditer(also["pattern"], t, re.M))
         for vals, rel in records(spec, code):
             item_id = render(spec.get("id", "{name}"), vals)
             if not item_id or (spec["kind"], item_id) in seen:
                 continue
             seen.add((spec["kind"], item_id))
             vals["id"] = item_id
-            row = {k: "" for k in FIELDS}
+            row = dict.fromkeys(FIELDS, "")
             row.update(kind=spec["kind"], id=item_id, name=render(spec.get("name", "{id}"), vals) or item_id,
                        aliases=render(spec.get("aliases", ""), vals), source_path=rel,
                        skip_reason=skip_reason(spec.get("skip_when"), vals))
@@ -234,7 +260,7 @@ def write_items(items, path):
     for r in items:
         cols += [c for c in r if c not in cols]
     with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+        w = safeio.DictWriter(f, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
         w.writerows(items)
 

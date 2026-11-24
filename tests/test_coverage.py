@@ -11,9 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 FIX = Path(__file__).resolve().parent / "fixtures"
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "scripts" / "extract"), str(ROOT / "scripts" / "checks")]
 
-import coverage  # noqa: E402
-import profile_coverage as pc  # noqa: E402
-import valkey_nav  # noqa: E402
+import profile_coverage as pc
+import valkey_nav
 
 
 class CoverageTest(unittest.TestCase):
@@ -23,7 +22,7 @@ class CoverageTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp())
-        profile, items, rows, cls.orphans = pc.run("valkey", FIX / "valkey", FIX / "docs", cls.tmp)
+        _profile, items, rows, cls.orphans = pc.run("valkey", FIX / "valkey", FIX / "docs", cls.tmp)
         cls.cfg = {r["id"]: r for r in items if r["kind"] == "config"}
         cls.rows = {r["id"]: r for r in rows}
 

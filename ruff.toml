@@ -1,0 +1,29 @@
+# Lint for bugs and security, not layout. The scripts use a compact style on purpose
+# (several short statements per line, % formatting in HTML templates), so pure-style
+# rules are off. Run: ruff check scripts tests
+target-version = "py310"
+line-length = 130
+
+[lint]
+select = [
+  "F",    # pyflakes: undefined names, unused imports
+  "E4", "E7", "E9",  # import placement, syntax-level errors
+  "B",    # bugbear: likely bugs
+  "S",    # bandit: security
+  "PLE", "PLW",  # pylint errors and warnings
+  "BLE",  # blind except
+  "C4",   # comprehensions
+  "RUF",  # ruff-specific
+  "UP",   # pyupgrade
+]
+ignore = [
+  "E401", "E701", "E702", "E731", "E741",  # compact one-line style
+  "UP031",   # % formatting in HTML templates
+  "RUF005",  # [a] + b is clearer here than unpacking
+  "S603",    # subprocess without a shell; arguments are lists and refs are validated
+  "S607",    # git is looked up on PATH on purpose
+  "PLW1510", # subprocess.run without check: return codes are handled explicitly
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["S101", "S108", "S105", "E402"]

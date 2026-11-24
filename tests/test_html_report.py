@@ -1,10 +1,10 @@
 """Tests for scripts/html_report.py. Run: python -m unittest discover -s tests"""
-import re, sys, tempfile, unittest
+import sys, tempfile, unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-import html_report  # noqa: E402
+import html_report
 
 
 class HtmlReportTest(unittest.TestCase):
