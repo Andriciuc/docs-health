@@ -1,0 +1,3 @@
+# Runtime dependencies of the scripts. The reusable workflows and CI install from this file,
+# so Dependabot keeps one version everywhere.
+pyyaml==6.0.3
