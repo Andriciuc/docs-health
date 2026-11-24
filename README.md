@@ -47,6 +47,15 @@ The site's source is in [`docs/`](docs/). Edit it there; `pages.yml` publishes e
 
 ## Contributing and license
 
-Issues and PRs are welcome. Every PR runs CI: the tests, a strict docs build with docs-health's own metadata check, and smoke runs of both workflows. More in [Contributing](https://andriciuc.github.io/docs-health/contributing/).
+Issues and PRs are welcome. Every PR runs these checks, and a finding fails the check on the PR:
+
+- **ruff**: lints the Python for bugs and insecure patterns.
+- **Tests**: the unit tests, including tests for the hardening.
+- **pip-audit**: checks the pinned packages for known CVEs.
+- **zizmor**: static security analysis of the workflows.
+- **Docs build**: a strict MkDocs build plus docs-health's own metadata check.
+- **Smoke runs**: both reusable workflows run against valkey-doc and valkey.
+
+Dependabot opens one PR a month to bump the pinned versions. More in [Contributing](https://andriciuc.github.io/docs-health/contributing/).
 
 Apache License 2.0. See [LICENSE](LICENSE).

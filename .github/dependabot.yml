@@ -1,0 +1,21 @@
+# Keeps pinned action SHAs and Python pins current. Updates arrive as PRs; nothing merges by itself.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7        # skip releases younger than a week (time for a bad release to be pulled)
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      python:
+        patterns: ["*"]
