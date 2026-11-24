@@ -1,5 +1,5 @@
 # docs-health profile: Valkey server (valkey-io/valkey) vs its docs (valkey-io/valkey-doc).
-# Reference for writing your own: README.md, "Write your own profile".
+# Reference for writing your own: docs/checks/write-a-profile.md
 name: valkey
 description: Commands from src/commands/*.json and config options from src/config.c, checked against valkey-doc.
 

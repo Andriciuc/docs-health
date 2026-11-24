@@ -4,8 +4,8 @@
 # report.html + CSVs, and (optional) one issue per run for a person to triage.
 #
 # What counts as documentable comes from a profile: a built-in name (profiles/*.yml,
-# e.g. "valkey") or "./path/to/profile.yml" in the calling repo. README.md,
-# "Write your own profile", explains the format.
+# e.g. "valkey") or "./path/to/profile.yml" in the calling repo. Format:
+# https://andriciuc.github.io/docs-health/checks/write-a-profile/
 #
 # Security: inputs reach shell steps only through env vars; actions are pinned to
 # commit SHAs; checkouts don't persist credentials; the analysis job is read-only;

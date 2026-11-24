@@ -16,7 +16,7 @@ Writes to --out (default ./docs-coverage):
   coverage.csv, orphans.csv, coverage_summary.md   from coverage.py
   plus the output of any checks the profile lists (e.g. valkey_nav)
 
-Profile reference: README.md, "Write your own profile". Example: profiles/valkey.yml.
+Profile reference: docs/checks/write-a-profile.md. Example: profiles/valkey.yml.
 
 Safety: globs must be relative and stay inside the code/docs folders; templates
 only substitute {field} values (no expressions); checks come from a fixed list.

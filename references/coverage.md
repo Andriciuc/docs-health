@@ -66,7 +66,7 @@ For each finding, give the count, `since`, 2–3 example items and the source fi
 
 ## Writing a profile
 
-The format is documented in README.md, "Write your own profile". When drafting one for a user:
+The format is documented in `docs/checks/write-a-profile.md` (also at https://andriciuc.github.io/docs-health/checks/write-a-profile/). When drafting one for a user:
 1. Find how items are declared in the code: a registration call (`DefineCustomIntVariable("…"`), a table, a file per item, an OpenAPI or JSON list. Anchor the regex on that declaration, not on the bare name.
 2. Pick the docs expectation: its own page (`expect.page`) for reference items with one page each, otherwise a mention (`expect.mention`).
 3. Add `skip_when` for items the code marks as internal, and `also_in` when the code ships its own reference file (a sample config).
