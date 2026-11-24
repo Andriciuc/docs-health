@@ -38,8 +38,27 @@ def run(cmd, **kw):
         sys.exit(f"failed: {' '.join(map(str, cmd))}\n{r.stderr.strip()}")
     return r.stdout
 
+SAFE_REF = re.compile(r"^(?!-)(?!.*\.\.)[A-Za-z0-9._/+-]{1,200}$")
+SAFE_REPO = re.compile(r"^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$")
+
+
+def check_ref(ref):
+    """Refuse refs git would read as an option (leading '-') or that hold odd characters."""
+    if ref and not SAFE_REF.match(ref):
+        sys.exit(f"refusing unsafe ref: {ref!r} (allowed: letters, digits, . _ / + -, not starting with -)")
+    return ref
+
+
 def parse(spec):
     """-> dict(kind=local|remote, path|owner/repo, ref)"""
+    src = _parse(spec)
+    check_ref(src["ref"])
+    if src["kind"] == "remote" and not SAFE_REPO.match(src["repo"]):
+        sys.exit(f"refusing unsafe repo name: {src['repo']!r}")
+    return src
+
+
+def _parse(spec):
     path, _, ref = spec.partition("@") if not spec.startswith("http") else (spec, "", "")
     if Path(path).expanduser().exists():
         return {"kind": "local", "path": Path(path).expanduser().resolve(), "ref": ref or None}
