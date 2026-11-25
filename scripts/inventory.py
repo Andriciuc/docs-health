@@ -370,7 +370,8 @@ def main(argv=None):
             path_part = t.split("#")[0].split("?")[0]
             if not path_part:
                 continue
-            tgt = (docs_dir / path_part) if path_part.startswith("/") else (p.parent / path_part)
+            # "/x.md" is relative to docs_dir; joining it as-is would drop docs_dir and resolve to the filesystem root.
+            tgt = (docs_dir / path_part.lstrip("/")) if path_part.startswith("/") else (p.parent / path_part)
             tgt = Path(os.path.normpath(tgt))
             ok = tgt.exists() or (tgt.is_dir() and (tgt / "index.md").exists()) \
                 or Path(str(tgt).rstrip("/") + ".md").exists() or (Path(str(tgt).rstrip("/")) / "index.md").exists()
