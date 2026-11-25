@@ -337,6 +337,7 @@ def main(argv=None):
     last, count, shallow, bulk_skipped = git_history(repo, docs_dir.relative_to(repo) if docs_dir != repo else ".", a.bulk_commit_files, a.ignore_commit_subject)
     now = time.time()
     pages, link_rows, par_index = [], [], defaultdict(list)
+    inbound = defaultdict(int)  # page -> internal links pointing at it (findability signal)
     snippet_targets = set()
     all_rel = {str(p.relative_to(docs_dir)).replace(os.sep, "/") for p in md_files}
 
@@ -378,6 +379,14 @@ def main(argv=None):
                 n_broken += 1
             link_rows.append({"page": rel, "kind": kind, "target": t, "scope": "internal",
                               "status": "ok" if ok else "broken"})
+            if ok and kind == "link":  # count it for the page it resolved to: x.md, x (-> x.md) or x/ (-> x/index.md)
+                for cand in (tgt, Path(str(tgt).rstrip("/") + ".md"), tgt / "index.md"):
+                    if cand.is_file():
+                        try:
+                            inbound[str(cand.relative_to(docs_dir)).replace(os.sep, "/")] += 1
+                        except ValueError:  # resolved outside docs_dir
+                            pass
+                        break
         snips = SNIP.findall(pp["body"]) + INCL.findall(pp["body"])
         for s in snips:
             found = None
@@ -431,16 +440,6 @@ def main(argv=None):
             row[f"depth:{name}"] = "" if e is None else e["depth"]
         pages.append(row)
 
-    # inbound links (findability signal)
-    inbound = defaultdict(int)
-    for lr in link_rows:
-        if lr["scope"] == "internal" and lr["kind"] == "link" and lr["status"] == "ok":
-            src = docs_dir / lr["page"]
-            tgt = os.path.normpath(src.parent / lr["target"].split("#")[0])
-            try:
-                inbound[str(Path(tgt).relative_to(docs_dir)).replace(os.sep, "/")] += 1
-            except ValueError:
-                pass
     for r in pages:
         r["links_inbound"] = inbound.get(r["path"], 0)
         r["used_as_snippet"] = r["path"] in snippet_targets
