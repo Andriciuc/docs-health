@@ -74,6 +74,23 @@ class ConfigEscapeTest(unittest.TestCase):
         self.assertNotIn("RecursionError", r.stderr)
 
 
+class ExistenceProbeTest(unittest.TestCase):
+    """Nav entries and links that point out of the repo must not reveal whether a file exists there."""
+    def test_outside_targets_are_not_probed(self):
+        base = Path(tempfile.mkdtemp())
+        (base / "outside.md").write_text("# secret\n", encoding="utf-8")
+        repo = base / "repo"
+        (repo / "docs").mkdir(parents=True)
+        (repo / "docs" / "index.md").write_text("# Home\n\n[x](../../outside.md)\n", encoding="utf-8")
+        (repo / "mkdocs.yml").write_text("site_name: x\nnav:\n  - index.md\n  - ../../outside.md\n", encoding="utf-8")
+        r, out = inventory(repo)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        nav = {row["path"]: row["exists"] for row in csv.DictReader(open(out / "nav.csv", encoding="utf-8"))}
+        self.assertEqual(nav["../../outside.md"], "False")
+        links = list(csv.DictReader(open(out / "links.csv", encoding="utf-8")))
+        self.assertEqual([(lk["target"], lk["status"]) for lk in links], [("../../outside.md", "broken")])
+
+
 class SizeCapTest(unittest.TestCase):
     def test_big_file_skipped(self):
         d = Path(tempfile.mkdtemp())

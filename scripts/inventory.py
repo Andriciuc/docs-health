@@ -325,7 +325,8 @@ def main(argv=None):
         for i, e in enumerate(entries):
             path = e["path"]
             external = bool(re.match(r"^[a-z]+://", path))
-            exists = "" if (not path or external) else (docs_dir / path).is_file()
+            # inside(): a nav entry like ../../../etc/passwd must not reveal whether that file exists.
+            exists = "" if (not path or external) else (safeio.inside(docs_dir / path, repo) and (docs_dir / path).is_file())
             nav_rows.append({"config": name, "order": i, "depth": e["depth"], "section": e["section"],
                              "title": e["title"], "path": path, "is_section": e.get("is_section", False),
                              "external": external, "exists": exists})
@@ -372,8 +373,9 @@ def main(argv=None):
                 continue
             tgt = (docs_dir / path_part) if path_part.startswith("/") else (p.parent / path_part)
             tgt = Path(os.path.normpath(tgt))
-            ok = tgt.exists() or (tgt.is_dir() and (tgt / "index.md").exists()) \
-                or Path(str(tgt).rstrip("/") + ".md").exists() or (Path(str(tgt).rstrip("/")) / "index.md").exists()
+            ok = safeio.inside(tgt, repo) and (  # links out of the repo are broken, not probed
+                tgt.exists() or (tgt.is_dir() and (tgt / "index.md").exists())
+                or Path(str(tgt).rstrip("/") + ".md").exists() or (Path(str(tgt).rstrip("/")) / "index.md").exists())
             if not ok:
                 n_broken += 1
             link_rows.append({"page": rel, "kind": kind, "target": t, "scope": "internal",
