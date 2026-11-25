@@ -91,7 +91,8 @@ def materialize(src, work, side, shallow, clones):
         else:
             run(["git", "-C", str(dest), "fetch", "-q", "origin", "+refs/heads/*:refs/remotes/origin/*"])
         ref = src["ref"]
-        ok = lambda r: sh(["git", "-C", str(dest), "rev-parse", "--verify", "-q", r]).returncode == 0
+        def ok(r):
+            return sh(["git", "-C", str(dest), "rev-parse", "--verify", "-q", r]).returncode == 0
         run(["git", "-C", str(dest), "checkout", "-q", "--detach", f"origin/{ref}" if ok(f"origin/{ref}") else ref])
         return dest
     repo = src["repo"]
@@ -205,45 +206,46 @@ def main(argv=None):
         r = sh([sys.executable, str(HERE / "inventory.py"), str(root), "--out", str(out / side), *extra])
         if r.returncode:
             sys.exit(f"inventory failed for {side} ({root}):\n{r.stderr}")
-    SA = json.loads((out / "a/summary.json").read_text(encoding="utf-8"))
-    SB = json.loads((out / "b/summary.json").read_text(encoding="utf-8"))
-    PA = {r["path"]: r for r in rcsv(out / "a/pages.csv")}; PB = {r["path"]: r for r in rcsv(out / "b/pages.csv")}
-    da = Path(ra) / SA["docs_dir"]; db = Path(rb) / SB["docs_dir"]
-    txt = lambda d, p: (d / p).read_text(encoding="utf-8-sig", errors="replace")
+    summary_a = json.loads((out / "a/summary.json").read_text(encoding="utf-8"))
+    summary_b = json.loads((out / "b/summary.json").read_text(encoding="utf-8"))
+    pages_a = {r["path"]: r for r in rcsv(out / "a/pages.csv")}; pages_b = {r["path"]: r for r in rcsv(out / "b/pages.csv")}
+    da = Path(ra) / summary_a["docs_dir"]; db = Path(rb) / summary_b["docs_dir"]
+    def txt(d, p):
+        return (d / p).read_text(encoding="utf-8-sig", errors="replace")
 
     # ---------- pages ----------
     rows = []
     def page_row(status, pa, pb, sim=""):
-        A, B = PA.get(pa, {}), PB.get(pb, {})
+        row_a, row_b = pages_a.get(pa, {}), pages_b.get(pb, {})
         ha = headings(txt(da, pa)) if pa else []; hb = headings(txt(db, pb)) if pb else []
-        ca, cb = A.get("last_commit", ""), B.get("last_commit", "")
+        ca, cb = row_a.get("last_commit", ""), row_b.get("last_commit", "")
         newer = "" if not (ca and cb) or ca == cb else ("a" if ca > cb else "b")
-        wa, wb = int(A.get("words") or 0), int(B.get("words") or 0)
-        return {"status": status, "path_a": pa or "", "path_b": pb or "", "title": B.get("title") or A.get("title", ""),
+        wa, wb = int(row_a.get("words") or 0), int(row_b.get("words") or 0)
+        return {"status": status, "path_a": pa or "", "path_b": pb or "", "title": row_b.get("title") or row_a.get("title", ""),
                 "similarity": sim, "words_a": wa if pa else "", "words_b": wb if pb else "",
                 "words_delta": (wb - wa) if pa and pb else "",
                 "headings_added": " | ".join(h for h in hb if h not in ha),
                 "headings_removed": " | ".join(h for h in ha if h not in hb),
-                "type_a": A.get("type_guess", ""), "type_b": B.get("type_guess", ""),
+                "type_a": row_a.get("type_guess", ""), "type_b": row_b.get("type_guess", ""),
                 "last_commit_a": ca, "last_commit_b": cb, "newer_side": newer}
-    for p in sorted(set(PA) & set(PB)):
+    for p in sorted(set(pages_a) & set(pages_b)):
         ta, tb = norm_text(txt(da, p)), norm_text(txt(db, p))
         if ta == tb:
             rows.append(page_row("same", p, p, 1.0)); continue
         sim = round(difflib.SequenceMatcher(None, ta, tb, autojunk=False).ratio(), 3)
         rows.append(page_row("changed", p, p, sim))
-    only_a = sorted(set(PA) - set(PB)); only_b = sorted(set(PB) - set(PA))
+    only_a = sorted(set(pages_a) - set(pages_b)); only_b = sorted(set(pages_b) - set(pages_a))
     # rename detection: same title first, then text similarity
     used_b = set()
     cache_b = {p: norm_text(txt(db, p)) for p in only_b}
     for p in list(only_a):
-        if PA[p].get("type_guess") == "release-notes":
+        if pages_a[p].get("type_guess") == "release-notes":
             continue  # a new release's notes are not a rename of an old one
         best, score = None, 0.0
         ta = norm_text(txt(da, p))
-        free = [q for q in only_b if q not in used_b and PB[q].get("type_guess") != "release-notes"]
+        free = [q for q in only_b if q not in used_b and pages_b[q].get("type_guess") != "release-notes"]
         # Same title wins, but several pages can share a title ("Overview"): take the closest text among them.
-        same_title = [q for q in free if PA[p]["title"] and PA[p]["title"] == PB[q]["title"]]
+        same_title = [q for q in free if pages_a[p]["title"] and pages_a[p]["title"] == pages_b[q]["title"]]
         if same_title:
             best = max(same_title, key=lambda q: difflib.SequenceMatcher(None, ta, cache_b[q], autojunk=False).ratio())
             score = 0.99
@@ -265,11 +267,11 @@ def main(argv=None):
         w = safeio.DictWriter(f, fieldnames=fields); w.writeheader(); w.writerows(rows)
 
     # ---------- nav ----------
-    NA, NB = rcsv(out / "a/nav.csv"), rcsv(out / "b/nav.csv")
+    nav_a, nav_b = rcsv(out / "a/nav.csv"), rcsv(out / "b/nav.csv")
     nav_rows = []
-    for cfg in sorted({r["config"] for r in NA} & {r["config"] for r in NB}):
-        ea = {r["path"]: r for r in NA if r["config"] == cfg and r["path"]}
-        eb = {r["path"]: r for r in NB if r["config"] == cfg and r["path"]}
+    for cfg in sorted({r["config"] for r in nav_a} & {r["config"] for r in nav_b}):
+        ea = {r["path"]: r for r in nav_a if r["config"] == cfg and r["path"]}
+        eb = {r["path"]: r for r in nav_b if r["config"] == cfg and r["path"]}
         for p in sorted(set(ea) | set(eb)):
             x, y = ea.get(p), eb.get(p)
             if x and not y: st = "only_a"
@@ -281,52 +283,52 @@ def main(argv=None):
                              "section_a": x["section"] if x else "", "section_b": y["section"] if y else "",
                              "title_a": x["title"] if x else "", "title_b": y["title"] if y else "",
                              "depth_a": x["depth"] if x else "", "depth_b": y["depth"] if y else ""})
-    unshared = sorted({r["config"] for r in NA} ^ {r["config"] for r in NB})
+    unshared = sorted({r["config"] for r in nav_a} ^ {r["config"] for r in nav_b})
     with open(out / "nav_compare.csv", "w", newline="", encoding="utf-8") as f:
         w = safeio.DictWriter(f, fieldnames=["config", "status", "path", "section_a", "section_b", "title_a", "title_b", "depth_a", "depth_b"])
         w.writeheader(); w.writerows(nav_rows)
 
     # ---------- issues ----------
-    def issue_set(S):
+    def issue_set(summary):
         s = set()
-        for l in S.get("broken_internal", []): s.add(("broken_link", l["page"], l["target"]))
-        for pg, v in S.get("undefined_variables", {}).items():
+        for l in summary.get("broken_internal", []): s.add(("broken_link", l["page"], l["target"]))
+        for pg, v in summary.get("undefined_variables", {}).items():
             for var in v.split(): s.add(("undefined_variable", pg, var))
-        for pg in S.get("orphans_not_in_any_nav", []): s.add(("orphan", pg, ""))
-        for cfg, pc in S.get("per_config", {}).items():
+        for pg in summary.get("orphans_not_in_any_nav", []): s.add(("orphan", pg, ""))
+        for cfg, pc in summary.get("per_config", {}).items():
             for m in pc.get("nav_missing_files", []): s.add(("nav_missing_file", cfg, m))
-        for pg in S.get("pages_multiple_h1", []): s.add(("multiple_h1", pg, ""))
+        for pg in summary.get("pages_multiple_h1", []): s.add(("multiple_h1", pg, ""))
         return s
-    IA, IB = issue_set(SA), issue_set(SB)
-    iss = [{"issue": k, "where": w_, "detail": d, "status": "fixed_in_b" if (k, w_, d) in IA - IB else
-            "introduced_in_b" if (k, w_, d) in IB - IA else "both"} for (k, w_, d) in sorted(IA | IB)]
+    issues_a, issues_b = issue_set(summary_a), issue_set(summary_b)
+    iss = [{"issue": k, "where": w_, "detail": d, "status": "fixed_in_b" if (k, w_, d) in issues_a - issues_b else
+            "introduced_in_b" if (k, w_, d) in issues_b - issues_a else "both"} for (k, w_, d) in sorted(issues_a | issues_b)]
     with open(out / "issues_compare.csv", "w", newline="", encoding="utf-8") as f:
         w = safeio.DictWriter(f, fieldnames=["issue", "where", "detail", "status"]); w.writeheader(); w.writerows(iss)
 
     # ---------- variables ----------
-    VA, VB = flat(load_vars(Path(ra), SA)), flat(load_vars(Path(rb), SB))
-    var_rows = [{"key": k, "a": VA.get(k, ""), "b": VB.get(k, ""),
-                 "status": "only_a" if k not in VB else "only_b" if k not in VA else "changed"}
-                for k in sorted(set(VA) | set(VB)) if VA.get(k) != VB.get(k)]
+    vars_a, vars_b = flat(load_vars(Path(ra), summary_a)), flat(load_vars(Path(rb), summary_b))
+    var_rows = [{"key": k, "a": vars_a.get(k, ""), "b": vars_b.get(k, ""),
+                 "status": "only_a" if k not in vars_b else "only_b" if k not in vars_a else "changed"}
+                for k in sorted(set(vars_a) | set(vars_b)) if vars_a.get(k) != vars_b.get(k)]
     with open(out / "variables_compare.csv", "w", newline="", encoding="utf-8") as f:
         w = safeio.DictWriter(f, fieldnames=["key", "a", "b", "status"]); w.writeheader(); w.writerows(var_rows)
 
     # ---------- metrics ----------
-    def m(S):
-        d = {"pages": S["pages"], "words_total": S["words_total"], "orphans": len(S["orphans_not_in_any_nav"]),
-             "broken_internal": len(S["broken_internal"]), "pages_undefined_vars": len(S["undefined_variables"]),
-             "duplicate_paragraph_groups": S["duplicate_paragraph_groups"],
-             "median_age_days": S["age_days"]["median"], "pages_over_365d": S["age_days"]["over_365"],
-             "pages_with_front_matter": max([0] + list(S["front_matter_usage"].values()))}
-        for t, n in S["type_mix_guess"].items(): d[f"type:{t}"] = n
-        for cfg, pc in S["per_config"].items():
+    def metrics(summary):
+        d = {"pages": summary["pages"], "words_total": summary["words_total"], "orphans": len(summary["orphans_not_in_any_nav"]),
+             "broken_internal": len(summary["broken_internal"]), "pages_undefined_vars": len(summary["undefined_variables"]),
+             "duplicate_paragraph_groups": summary["duplicate_paragraph_groups"],
+             "median_age_days": summary["age_days"]["median"], "pages_over_365d": summary["age_days"]["over_365"],
+             "pages_with_front_matter": max([0] + list(summary["front_matter_usage"].values()))}
+        for t, n in summary["type_mix_guess"].items(): d[f"type:{t}"] = n
+        for cfg, pc in summary["per_config"].items():
             d[f"nav:{cfg}:pages"] = pc["nav_pages"]; d[f"nav:{cfg}:max_depth"] = pc["max_depth"]
             d[f"nav:{cfg}:missing_files"] = len(pc["nav_missing_files"])
         return d
-    MA, MB = m(SA), m(SB)
+    metrics_a, metrics_b = metrics(summary_a), metrics(summary_b)
     met = []
-    for k in list(dict.fromkeys(list(MA) + list(MB))):
-        x, y = MA.get(k, ""), MB.get(k, "")
+    for k in list(dict.fromkeys(list(metrics_a) + list(metrics_b))):
+        x, y = metrics_a.get(k, ""), metrics_b.get(k, "")
         met.append({"metric": k, "a": x, "b": y,
                     "delta": (y - x) if isinstance(x, (int, float)) and isinstance(y, (int, float)) else ""})
     with open(out / "metrics_compare.csv", "w", newline="", encoding="utf-8") as f:
@@ -341,7 +343,8 @@ def main(argv=None):
     if sha_a and sha_b and sha_a != sha_b:
         # Work in a repo that has both commits. Only our own clones under --work are ever fetched into;
         # a user's local repo is read, never written.
-        under_work = lambda r: safeio.inside(r, work)
+        def under_work(r):
+            return safeio.inside(r, work)
         scratch = None
         for repo_dir, other in ((rb, ra), (ra, rb)):
             other_sha = sha_a if other is ra else sha_b
@@ -350,7 +353,7 @@ def main(argv=None):
             if under_work(repo_dir) and git(repo_dir, "fetch", "-q", str(Path(other).resolve()), other_sha) is not None:
                 scratch = repo_dir; break
         if scratch:
-            dd = SB["docs_dir"]
+            dd = summary_b["docs_dir"]
             for side, rng in (("only_a", f"{sha_b}..{sha_a}"), ("only_b", f"{sha_a}..{sha_b}")):
                 log = git(scratch, "log", "--no-merges", "--format=%h%x09%cs%x09%an%x09%s", rng, "--", dd) or ""
                 for ln in log.splitlines():
@@ -361,11 +364,12 @@ def main(argv=None):
         w = safeio.DictWriter(f, fieldnames=["side", "commit", "date", "author", "subject"]); w.writeheader(); w.writerows(commit_rows)
 
     # ---------- digest ----------
-    cnt = lambda st: sum(1 for r in rows if r["status"] == st)
+    def cnt(st):
+        return sum(1 for r in rows if r["status"] == st)
     changed = sorted([r for r in rows if r["status"] == "changed"], key=lambda r: float(r["similarity"] or 1))
     md = [f"# Doc set comparison: A = {la}, B = {lb}", "",
-          f"- A: `{ra}` (docs_dir `{SA['docs_dir']}`), B: `{rb}` (docs_dir `{SB['docs_dir']}`)",
-          f"- pages: A {SA['pages']}, B {SB['pages']}; same {cnt('same')}, changed {cnt('changed')}, "
+          f"- A: `{ra}` (docs_dir `{summary_a['docs_dir']}`), B: `{rb}` (docs_dir `{summary_b['docs_dir']}`)",
+          f"- pages: A {summary_a['pages']}, B {summary_b['pages']}; same {cnt('same')}, changed {cnt('changed')}, "
           f"renamed {cnt('renamed')}, only in A {cnt('only_a')}, only in B {cnt('only_b')}",
           f"- issues: fixed in B {sum(1 for i in iss if i['status']=='fixed_in_b')}, "
           f"introduced in B {sum(1 for i in iss if i['status']=='introduced_in_b')}, in both {sum(1 for i in iss if i['status']=='both')}",
@@ -373,7 +377,7 @@ def main(argv=None):
           f"- variables differing: {len(var_rows)}",
           (f"- docs commits only in A: {ahead_behind[0]}, only in B: {ahead_behind[1]} (commits_compare.csv)" if ahead_behind
            else "- commits: sides don't share git history (or same commit); commits_compare.csv empty")]
-    if a.shallow or SA.get("git_shallow") or SB.get("git_shallow"):
+    if a.shallow or summary_a.get("git_shallow") or summary_b.get("git_shallow"):
         md.append("- SHALLOW history on at least one side: last-commit dates/newer_side are unreliable")
     md += ["", "## Metrics", "| metric | A | B | Δ |", "|---|---|---|---|"]
     md += [f"| {r['metric']} | {r['a']} | {r['b']} | {r['delta']} |" for r in met if r["a"] != r["b"]]
