@@ -32,8 +32,11 @@ class SymlinkTest(unittest.TestCase):
         self.repo = base / "repo"
         (self.repo / "docs").mkdir(parents=True)
         (self.repo / "docs" / "index.md").write_text("# Home\n", encoding="utf-8")
-        (self.repo / "docs" / "leak.md").symlink_to(self.outside / "secret.md")
-        (self.repo / "docs" / "dir").symlink_to(self.outside, target_is_directory=True)
+        try:
+            (self.repo / "docs" / "leak.md").symlink_to(self.outside / "secret.md")
+            (self.repo / "docs" / "dir").symlink_to(self.outside, target_is_directory=True)
+        except OSError as e:  # Windows without Developer Mode or admin rights: WinError 1314
+            self.skipTest(f"cannot create symlinks here: {e}")
 
     def test_files_skips_links_out(self):
         names = [f.name for f in safeio.files(self.repo / "docs", "**/*.md")]
