@@ -4,7 +4,11 @@ Fixtures in tests/fixtures/ are tiny copies of the Valkey formats (command JSON,
 config.c, valkey.conf, valkey-doc layout). If an upstream format changes, update
 the fixture first and watch which test breaks.
 """
-import csv, sys, tempfile, unittest
+
+import csv
+import sys
+import tempfile
+import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,8 +57,8 @@ class CoverageTest(unittest.TestCase):
 
     def test_config_mentions(self):
         self.assertEqual(self.rows["databases"]["status"], "mentioned")  # `databases 16`
-        self.assertEqual(self.rows["daemonize"]["status"], "documented_elsewhere")   # in valkey.conf
-        self.assertEqual(self.rows["undocumented-knob"]["status"], "not_mentioned")   # in neither
+        self.assertEqual(self.rows["daemonize"]["status"], "documented_elsewhere")  # in valkey.conf
+        self.assertEqual(self.rows["undocumented-knob"]["status"], "not_mentioned")  # in neither
 
     def test_orphans(self):
         got = {o["page"]: o["reason"] for o in self.orphans}

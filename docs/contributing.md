@@ -11,7 +11,7 @@ A finding fails the check and shows as an annotation on the PR. Nothing is filed
 
 | Check | Job | What it does |
 |---|---|---|
-| ruff | `unit` | Lints `scripts/` and `tests/` for likely bugs and insecure patterns: catching every error, unsafe subprocess calls, unsafe YAML loading. The rules are in `ruff.toml`; layout rules are off. |
+| ruff | `unit` | Lints `scripts/` and `tests/` for likely bugs and insecure patterns: catching every error, unsafe subprocess calls, unsafe YAML loading. The rules are in `ruff.toml`. `ruff format --check` keeps the layout consistent. |
 | Tests | `unit` | Runs the unit tests with `unittest` under `coverage` and fails if line coverage of `scripts/` drops below 80%. `tests/test_hardening.py` covers symlink escapes, paths outside the repo in `mkdocs.yml`, the file size limit, CSV formula cells and profile validation. |
 | pip-audit | `unit` | Checks the pinned packages in `requirements-run.txt`, `requirements-ci.txt` and `requirements-docs.txt` against public vulnerability databases. Fails on a known CVE. |
 | zizmor | `zizmor` | Static analysis of the workflows and the Dependabot config: injection from workflow inputs, broad token permissions, persisted credentials, unpinned actions, wrong expression logic. Settings are in `.github/zizmor.yml`. |
@@ -22,7 +22,7 @@ Run the same checks locally:
 
 ```bash
 pip install -r requirements-ci.txt
-ruff check scripts tests
+ruff format --check scripts tests && ruff check scripts tests
 python -m coverage run --source=scripts -m unittest discover -s tests && python -m coverage report
 pip-audit -r requirements-ci.txt -r requirements-docs.txt
 pipx run zizmor .github          # or: pip install zizmor

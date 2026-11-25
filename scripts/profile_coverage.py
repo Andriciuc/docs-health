@@ -22,7 +22,11 @@ Safety: globs must be relative and stay inside the code/docs folders; templates
 only substitute {field} values (no expressions); checks come from a fixed list.
 Stdlib + PyYAML.
 """
-import argparse, json, re, sys
+
+import argparse
+import json
+import re
+import sys
 from pathlib import Path
 
 import yaml
@@ -32,8 +36,21 @@ sys.path[:0] = [str(HERE), str(HERE / "checks")]
 import docs_coverage  # noqa: E402
 import safeio  # noqa: E402
 
-FIELDS = ["kind", "id", "name", "aliases", "expected_page", "require_heading", "skip_reason",
-          "source_path", "group", "container", "since", "deprecated_since", "replaced_by"]
+FIELDS = [
+    "kind",
+    "id",
+    "name",
+    "aliases",
+    "expected_page",
+    "require_heading",
+    "skip_reason",
+    "source_path",
+    "group",
+    "container",
+    "since",
+    "deprecated_since",
+    "replaced_by",
+]
 SOURCES = ("json", "yaml", "regex")
 REGEX_FLAGS = {"MULTILINE": re.M, "DOTALL": re.S, "IGNORECASE": re.I}
 TEMPLATE = re.compile(r"\{(\w+)\}")
@@ -44,6 +61,7 @@ class ProfileError(ValueError):
 
 
 # ---------- profile loading ----------
+
 
 def resolve_profile(spec):
     p = Path(spec)
@@ -59,8 +77,7 @@ def resolve_profile(spec):
 
 
 def safe_glob(g):
-    if not isinstance(g, str) or not g or g.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", g) \
-            or ".." in Path(g).parts:
+    if not isinstance(g, str) or not g or g.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", g) or ".." in Path(g).parts:
         raise ProfileError(f"glob must be relative and stay inside the folder: {g!r}")
     return g
 
@@ -128,6 +145,7 @@ def load_profile(path):
 
 
 # ---------- extraction ----------
+
 
 def text_of(v):
     if v is None or isinstance(v, (dict,)):
@@ -202,12 +220,12 @@ def records(spec, code):
             data = walk(data, spec["each"])
             rows = data if isinstance(data, list) else (list(data.values()) if isinstance(data, dict) else [])
         else:
-            rows = data if isinstance(data, list) else [data]   # a top-level list is one item per entry
+            rows = data if isinstance(data, list) else [data]  # a top-level list is one item per entry
         for row in rows:
             vals = dict(base)
             item = row
             if spec.get("unwrap") == "single-key" and isinstance(row, dict) and len(row) == 1:
-                (key, item), = row.items()
+                ((key, item),) = row.items()
                 vals["key"] = key
             if isinstance(item, dict):
                 for k, v in item.items():
@@ -236,9 +254,14 @@ def extract(profile, code):
             seen.add((spec["kind"], item_id))
             vals["id"] = item_id
             row = dict.fromkeys(FIELDS, "")
-            row.update(kind=spec["kind"], id=item_id, name=render(spec.get("name", "{id}"), vals) or item_id,
-                       aliases=render(spec.get("aliases", ""), vals), source_path=rel,
-                       skip_reason=skip_reason(spec.get("skip_when"), vals))
+            row.update(
+                kind=spec["kind"],
+                id=item_id,
+                name=render(spec.get("name", "{id}"), vals) or item_id,
+                aliases=render(spec.get("aliases", ""), vals),
+                source_path=rel,
+                skip_reason=skip_reason(spec.get("skip_when"), vals),
+            )
             for col, tmpl in (spec.get("fields") or {}).items():
                 if re.fullmatch(r"[A-Za-z0-9_]+", str(col)):
                     row[col] = render(tmpl, vals)
@@ -267,8 +290,10 @@ def write_items(items, path):
 
 # ---------- checks (fixed list; profiles can only name these) ----------
 
+
 def _valkey_nav(docs, items_csv, out):
     import valkey_nav
+
     valkey_nav.main(docs, items_csv, out)
 
 
@@ -297,9 +322,16 @@ def run(profile_spec, code, docs, out):
             r["status"], r["detail"] = "documented_elsewhere", f"in {rule[1]}"
         return r
 
-    rows, orphans = docs_coverage.run(docs_coverage.read_items([out / "items.csv"]), docs, out, page_globs,
-                                 d.get("ignore_globs") or [], d.get("mention_globs") or ["**/*.md"],
-                                 d.get("exclude_globs") or [], adjust=adjust)
+    rows, orphans = docs_coverage.run(
+        docs_coverage.read_items([out / "items.csv"]),
+        docs,
+        out,
+        page_globs,
+        d.get("ignore_globs") or [],
+        d.get("mention_globs") or ["**/*.md"],
+        d.get("exclude_globs") or [],
+        adjust=adjust,
+    )
     for name in profile.get("checks") or []:
         CHECKS[name](Path(docs), out / "items.csv", out)
     return profile, items, rows, orphans
@@ -327,5 +359,8 @@ if __name__ == "__main__":
     except ProfileError as e:
         sys.exit(f"profile error: {e}")
     from collections import Counter
-    sys.stderr.write(f"profile {prof.get('name', a.profile)}: {len(items)} items "
-                     f"{dict(Counter(r['status'] for r in rows))}; orphan pages: {len(orphans)}; wrote {a.out}/\n")
+
+    sys.stderr.write(
+        f"profile {prof.get('name', a.profile)}: {len(items)} items "
+        f"{dict(Counter(r['status'] for r in rows))}; orphan pages: {len(orphans)}; wrote {a.out}/\n"
+    )

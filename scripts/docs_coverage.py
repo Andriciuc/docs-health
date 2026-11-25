@@ -43,7 +43,11 @@ Writes to --out (default ./docs-coverage):
 
 Stdlib only. Read-only on both trees.
 """
-import argparse, fnmatch, re, sys
+
+import argparse
+import fnmatch
+import re
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -133,7 +137,7 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
             status, detail = "skipped", it["skip_reason"]
         elif exp:
             p = docs / exp
-            if not safeio.readable(p, docs):   # missing, or a name like ../../x escaping docs/
+            if not safeio.readable(p, docs):  # missing, or a name like ../../x escaping docs/
                 if hits:
                     status, detail = "no_page_mentioned", f"no {exp}; covered only in other pages"
                 else:
@@ -149,8 +153,9 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
         if it.get("deprecated_since") and hits:
             repl = {" ".join(x.split()).lower() for x in re.findall(r"`([^`]+)`", it.get("replaced_by") or "")}
             dep_pages = [p for p in hits if not (repl and mentioned(repl, pages[p][1]))]
-        row.update(status=status, detail=detail, mentions=len(hits), pages=";".join(hits[:5]),
-                   deprecated_in_use=";".join(dep_pages))
+        row.update(
+            status=status, detail=detail, mentions=len(hits), pages=";".join(hits[:5]), deprecated_in_use=";".join(dep_pages)
+        )
         rows.append(row)
 
     orphans = []
@@ -188,16 +193,23 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
     for status in ("undocumented", "missing_heading", "not_mentioned"):
         gap = [r for r in rows if r["status"] == status]
         if gap:
-            md += ["", f"## {status} ({len(gap)})", ""] + [f"- {r['kind']} `{r['name']}` {r['detail']}".rstrip() for r in gap[:cap]]
+            md += ["", f"## {status} ({len(gap)})", ""] + [
+                f"- {r['kind']} `{r['name']}` {r['detail']}".rstrip() for r in gap[:cap]
+            ]
             if len(gap) > cap:
                 md.append(f"- … {len(gap) - cap} more in coverage.csv")
     dep = [r for r in rows if r["deprecated_in_use"]]
     if dep:
         md += ["", f"## deprecated but still used in docs ({len(dep)})", ""]
-        md += [f"- `{r['name']}` deprecated since {r['deprecated_since']}, replaced by {r.get('replaced_by') or '?'}: {r['deprecated_in_use']}" for r in dep]
+        md += [
+            f"- `{r['name']}` deprecated since {r['deprecated_since']}, replaced by {r.get('replaced_by') or '?'}: {r['deprecated_in_use']}"
+            for r in dep
+        ]
     nmp = [r for r in rows if r["status"] == "no_page_mentioned"]
     if nmp:
-        md += ["", f"## no page of their own, covered elsewhere ({len(nmp)})", ""] + [f"- `{r['name']}`: {r['pages']}" for r in nmp]
+        md += ["", f"## no page of their own, covered elsewhere ({len(nmp)})", ""] + [
+            f"- `{r['name']}`: {r['pages']}" for r in nmp
+        ]
     nos = [o for o in orphans if o["reason"] == "no_source"]
     if nos:
         md += ["", f"## pages with no source ({len(nos)})", ""] + [f"- {o['page']}" for o in nos]

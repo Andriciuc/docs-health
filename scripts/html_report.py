@@ -22,7 +22,12 @@ noted under the table and the full CSV stays next to the report.
 Stdlib only. The Markdown renderer handles what these reports use: headings,
 paragraphs, lists, tables, fenced code, inline code, bold, italics and links.
 """
-import argparse, csv, html, re, sys
+
+import argparse
+import csv
+import html
+import re
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -51,6 +56,7 @@ def inline(text):
     def keep(m):
         codes.append("<code>%s</code>" % html.escape(m.group(1)))
         return "\x00%d\x00" % (len(codes) - 1)
+
     s = re.sub(r"`([^`]*)`", keep, text)
     s = html.escape(s, quote=False)
     s = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", link, s)
@@ -131,6 +137,7 @@ def md_to_html(text, id_prefix):
 
 # ---------- CSV ----------
 
+
 def csv_table(path, tid, max_rows):
     delim = "\t" if path.suffix == ".tsv" else ","
     with open(path, newline="", encoding="utf-8-sig") as f:
@@ -203,21 +210,29 @@ def build(dirs, title, max_rows):
             table, n = csv_table(p, tid, max_rows)
             tables.append((tid, label + p.name, n, table))
     nav = ["<h2>Reports</h2><ul>"] + ['<li><a href="#%s">%s</a></li>' % (s, html.escape(t)) for s, t, _, _ in reports] + ["</ul>"]
-    nav += ["<h2>Data</h2><ul>"] + ['<li><a href="#%s-s">%s (%d)</a></li>' % (t, html.escape(n), c) for t, n, c, _ in tables] + ["</ul>"]
+    nav += (
+        ["<h2>Data</h2><ul>"]
+        + ['<li><a href="#%s-s">%s (%d)</a></li>' % (t, html.escape(n), c) for t, n, c, _ in tables]
+        + ["</ul>"]
+    )
     main = []
     for sid, _t, p, body in reports:
         main.append('<section id="%s"><p class="src">Source: <code>%s</code></p>%s</section>' % (sid, html.escape(p.name), body))
     for tid, name, _n, table in tables:
-        main.append('<section id="%s-s"><h2>Data: %s</h2><p class="src">Click a header to sort. '
-                    '<input type="text" placeholder="Filter rows" oninput="filt(this,\'%s\')" onkeyup="filt(this,\'%s\')"></p>%s</section>'
-                    % (tid, html.escape(name), tid, tid, table))
+        main.append(
+            '<section id="%s-s"><h2>Data: %s</h2><p class="src">Click a header to sort. '
+            '<input type="text" placeholder="Filter rows" oninput="filt(this,\'%s\')" onkeyup="filt(this,\'%s\')"></p>%s</section>'
+            % (tid, html.escape(name), tid, tid, table)
+        )
     meta = "Generated %s from %s" % (date.today().isoformat(), ", ".join(html.escape(s) for s in sources))
-    return ('<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
-            '<meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            "<title>%s</title><style>%s</style></head><body>"
-            '<div id="side"><h1>%s</h1><div class="meta">%s</div>%s</div>'
-            '<div id="main">%s</div><script>%s</script></body></html>\n'
-            % (html.escape(title), CSS, html.escape(title), meta, "".join(nav), "\n".join(main), JS))
+    return (
+        '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
+        '<meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1">'
+        "<title>%s</title><style>%s</style></head><body>"
+        '<div id="side"><h1>%s</h1><div class="meta">%s</div>%s</div>'
+        '<div id="main">%s</div><script>%s</script></body></html>\n'
+        % (html.escape(title), CSS, html.escape(title), meta, "".join(nav), "\n".join(main), JS)
+    )
 
 
 if __name__ == "__main__":

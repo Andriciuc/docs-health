@@ -9,6 +9,7 @@ read from them goes into CSVs, reports and Actions artifacts, so:
 - CSV cells that a spreadsheet would run as a formula are neutralized;
 - git never prompts for credentials and every subprocess has a timeout.
 """
+
 import csv
 import os
 import re
@@ -19,8 +20,7 @@ MAX_BYTES = int(os.environ.get("DOCS_HEALTH_MAX_FILE_BYTES", str(10 * 1024 * 102
 GIT_TIMEOUT = int(os.environ.get("DOCS_HEALTH_GIT_TIMEOUT", "900"))
 
 # git must fail fast instead of waiting for a username on a private or missing repo.
-GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "", "SSH_ASKPASS": "",
-           "GCM_INTERACTIVE": "never"}
+GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "", "SSH_ASKPASS": "", "GCM_INTERACTIVE": "never"}
 
 _warned = set()
 
@@ -84,7 +84,7 @@ def read_text(f):
 # to =HYPERLINK(...) or similar, which a spreadsheet runs when someone opens the CSV.
 _FORMULA = ("=", "+", "-", "@", "\t", "\r")
 _NUMBER = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?%?$")
-_FLAG = re.compile(r"^--?[A-Za-z][A-Za-z0-9_.-]*(=[A-Za-z0-9_./:-]*)?$")   # --verbose, -p, --tls-port=6379
+_FLAG = re.compile(r"^--?[A-Za-z][A-Za-z0-9_.-]*(=[A-Za-z0-9_./:-]*)?$")  # --verbose, -p, --tls-port=6379
 
 
 def cell(v):

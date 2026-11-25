@@ -1,6 +1,10 @@
 """Tests for scripts/compare.py on two local trees that share git history.
 Run: python -m unittest discover -s tests"""
-import csv, sys, tempfile, unittest
+
+import csv
+import sys
+import tempfile
+import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -27,8 +31,16 @@ class CompareTest(unittest.TestCase):
 
     def test_page_status(self):
         status = {(r["path_a"] or r["path_b"]): r["status"] for r in rows(self.out / "pages_compare.csv")}
-        self.assertEqual(status, {"guide/install.md": "changed", "index.md": "same", "snippets/note.md": "same",
-                                  "orphan.md": "only_a", "new.md": "only_b"})
+        self.assertEqual(
+            status,
+            {
+                "guide/install.md": "changed",
+                "index.md": "same",
+                "snippets/note.md": "same",
+                "orphan.md": "only_a",
+                "new.md": "only_b",
+            },
+        )
 
     def test_nav(self):
         nav = {(r["status"], r["path"]) for r in rows(self.out / "nav_compare.csv")}

@@ -1,6 +1,13 @@
 """Hardening tests: untrusted repos must not leak files, exhaust memory or plant spreadsheet formulas.
 Run: python -m unittest discover -s tests"""
-import csv, io, os, subprocess, sys, tempfile, unittest
+
+import csv
+import io
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,8 +21,11 @@ SECRET = "TOP-SECRET-OUTSIDE-THE-REPO"
 
 def inventory(repo, *args):
     out = Path(tempfile.mkdtemp())
-    r = subprocess.run([sys.executable, "-I", str(ROOT / "scripts" / "inventory.py"), str(repo), "--out", str(out), *args],
-                       capture_output=True, text=True)
+    r = subprocess.run(
+        [sys.executable, "-I", str(ROOT / "scripts" / "inventory.py"), str(repo), "--out", str(out), *args],
+        capture_output=True,
+        text=True,
+    )
     return r, out
 
 
@@ -84,7 +94,7 @@ class SizeCapTest(unittest.TestCase):
 
 class CsvFormulaTest(unittest.TestCase):
     def test_cells(self):
-        for bad in ["=HYPERLINK(\"http://x\",\"y\")", "+cmd|' /C calc'!A0", "@SUM(1)", "-2+3+cmd|x!A0", "\t=1"]:
+        for bad in ['=HYPERLINK("http://x","y")', "+cmd|' /C calc'!A0", "@SUM(1)", "-2+3+cmd|x!A0", "\t=1"]:
             self.assertTrue(safeio.cell(bad).startswith("'"), bad)
             self.assertEqual(safeio.uncell(safeio.cell(bad)), bad)
         for keep in ["-3", "+4.5", "12%", "--verbose", "-p", "--tls-port=6379", "plain", 7, None]:

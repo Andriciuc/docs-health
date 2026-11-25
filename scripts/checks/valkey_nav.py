@@ -18,7 +18,9 @@ compared with "-" and "_" treated as equal, as the website template does). Statu
 winning level), skipped (SYSCMD or no doc page). Also lists nav entries that
 match no command, and topics listed zero or several times.
 """
-import argparse, sys
+
+import argparse
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -45,6 +47,7 @@ def nav_entries(repo):
                 if isinstance(t, dict):
                     for c in t.get("commands") or []:
                         refs.append((str(c), f"{where}/{name}"))
+
     if safeio.readable(repo / "nav.yml", repo):
         walk(yaml.safe_load(safeio.read_text(repo / "nav.yml")), "nav.yml")
     for f in safeio.files(repo, "modules-nav/*.yml"):
@@ -92,8 +95,17 @@ def main(repo, items_csv, out):
             status, detail = "covered", ""
         if found:
             used.add((found[0], found[1]))
-        rows.append({"id": c["id"], "name": c["name"], "group": c["group"], "status": status, "detail": detail,
-                     "level": found[0] if found else "", "entries": ";".join(found[2]) if found else ""})
+        rows.append(
+            {
+                "id": c["id"],
+                "name": c["name"],
+                "group": c["group"],
+                "status": status,
+                "detail": detail,
+                "level": found[0] if found else "",
+                "entries": ";".join(found[2]) if found else "",
+            }
+        )
     unmatched = []
     for ref, where in refs:
         level = "group" if ref.islower() else None
@@ -117,19 +129,34 @@ def main(repo, items_csv, out):
     for s in ("uncovered", "ambiguous"):
         lst = [r for r in rows if r["status"] == s]
         if lst:
-            md += ["", f"## {s} ({len(lst)})", ""] + [f"- `{r['name']}` ({r['group']}): {r['detail']} {r['entries']}".rstrip() for r in lst]
+            md += ["", f"## {s} ({len(lst)})", ""] + [
+                f"- `{r['name']}` ({r['group']}): {r['detail']} {r['entries']}".rstrip() for r in lst
+            ]
     if unmatched:
-        md += ["", f"## menu entries matching no command or unused ({len(unmatched)})", ""] + [f"- `{r}` in {w}" for r, w in unmatched]
-    md += ["", "## topics", "", f"- not listed in any menu: {not_listed or 'none'}",
-           f"- listed more than once: {multi or 'none'}", f"- listed but no file: {missing or 'none'}"]
+        md += ["", f"## menu entries matching no command or unused ({len(unmatched)})", ""] + [
+            f"- `{r}` in {w}" for r, w in unmatched
+        ]
+    md += [
+        "",
+        "## topics",
+        "",
+        f"- not listed in any menu: {not_listed or 'none'}",
+        f"- listed more than once: {multi or 'none'}",
+        f"- listed but no file: {missing or 'none'}",
+    ]
     gj = repo / "groups.json"
     if safeio.readable(gj, repo):
         import json
+
         known = {k.replace("-", "_") for k in json.loads(safeio.read_text(gj))}
         code_groups = sorted({c["group"] for c in cmds if c["group"]})
         unknown = [g for g in code_groups if g.replace("-", "_") not in known]
-        md += ["", "## groups.json (command group labels on the website)", "",
-               f"- groups in command JSON missing from groups.json: {unknown or 'none'}"]
+        md += [
+            "",
+            "## groups.json (command group labels on the website)",
+            "",
+            f"- groups in command JSON missing from groups.json: {unknown or 'none'}",
+        ]
     (out / "nav_summary.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     sys.stderr.write(f"{dict(cnt)}; unmatched menu entries: {len(unmatched)}\n")
 

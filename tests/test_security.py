@@ -1,5 +1,8 @@
 """Security regression tests. Run: python -m unittest discover -s tests"""
-import subprocess, sys, unittest
+
+import subprocess
+import sys
+import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,8 +33,9 @@ class LinkSafetyTest(unittest.TestCase):
 
 class RefSafetyTest(unittest.TestCase):
     def run_compare(self, a, b):
-        return subprocess.run([sys.executable, str(ROOT / "scripts" / "compare.py"), a, b, "--work", "/tmp/dh-sec"],
-                              capture_output=True, text=True)
+        return subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "compare.py"), a, b, "--work", "/tmp/dh-sec"], capture_output=True, text=True
+        )
 
     def test_option_like_ref_refused(self):
         r = self.run_compare("owner/repo@--upload-pack=touch /tmp/x", "owner/repo@main")

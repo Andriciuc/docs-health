@@ -1,5 +1,8 @@
 """Tests for scripts/metadata_check.py. Run: python -m unittest discover -s tests"""
-import sys, tempfile, unittest
+
+import sys
+import tempfile
+import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,13 +14,14 @@ import metadata_check as mc
 class MetadataCheckTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pages, cls.prefixes = mc.run(FIX, ["topics/*.md"], "title", "description", 60, 70, 160, 3,
-                                     short_words=1, template="Docs · {title}")
+        pages, cls.prefixes = mc.run(
+            FIX, ["topics/*.md"], "title", "description", 60, 70, 160, 3, short_words=1, template="Docs · {title}"
+        )
         cls.p = {Path(x["path"]).stem: x for x in pages}
         cls.issues = {k: set(filter(None, v["issues"].split(";"))) for k, v in cls.p.items()}
 
     def test_clean_page(self):
-        self.assertEqual(self.issues["good"], set())       # H1 inside a code fence is ignored
+        self.assertEqual(self.issues["good"], set())  # H1 inside a code fence is ignored
 
     def test_short_title_and_body_h1(self):
         self.assertIn("short_title", self.issues["short"])

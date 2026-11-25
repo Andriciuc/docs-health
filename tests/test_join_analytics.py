@@ -1,5 +1,9 @@
 """Tests for scripts/join_analytics.py. Run: python -m unittest discover -s tests"""
-import csv, sys, tempfile, unittest
+
+import csv
+import sys
+import tempfile
+import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path

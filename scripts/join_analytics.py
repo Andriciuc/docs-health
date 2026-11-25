@@ -22,7 +22,11 @@ Outputs (next to --out):
   joined_by_version.csv  page, version, metrics (long format)
   unmatched.csv          analytics rows matching no page -> renamed/deleted URLs = redirect candidates
 """
-import argparse, csv, re, sys
+
+import argparse
+import csv
+import re
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -31,6 +35,7 @@ import safeio
 from urllib.parse import urlparse
 
 VERSION = re.compile(r"^(\d+(\.\d+)*|latest|main|dev|stable)$")
+
 
 def segs(u):
     u = u.strip()
@@ -42,11 +47,13 @@ def segs(u):
     u = re.sub(r"\.html?$", "", u)
     return [s for s in u.split("/") if s]
 
+
 def num(v):
     try:
         return float(str(v).replace(",", "").strip())
     except ValueError:
         return None
+
 
 def final(d, metrics, additive):
     return {m: round(d[m] if m in additive else (d[m] / d["__w"] if d["__w"] else 0), 2) for m in metrics}
@@ -54,8 +61,10 @@ def final(d, metrics, additive):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("pages"); ap.add_argument("analytics")
-    ap.add_argument("--key"); ap.add_argument("--out", default="joined.csv")
+    ap.add_argument("pages")
+    ap.add_argument("analytics")
+    ap.add_argument("--key")
+    ap.add_argument("--out", default="joined.csv")
     a = ap.parse_args(argv)
 
     pages = safeio.read_csv(a.pages)
@@ -67,8 +76,9 @@ def main(argv=None):
     key = a.key or next((h for h in rows[0] if re.search(r"page|url|path", h, re.I)), None)
     if not key:
         sys.exit(f"no URL column found; pass --key. Columns: {list(rows[0])}")
-    metrics = [h for h in rows[0] if h != key and any(r[h] for r in rows)
-               and all(num(r[h]) is not None for r in rows[:200] if r[h])]
+    metrics = [
+        h for h in rows[0] if h != key and any(r[h] for r in rows) and all(num(r[h]) is not None for r in rows[:200] if r[h])
+    ]
 
     RATIO = re.compile(r"per |average|avg|rate|ratio|ctr|position|%|duration|time", re.I)
     ratio = [m for m in metrics if RATIO.search(m)]
@@ -92,7 +102,8 @@ def main(argv=None):
                 hit, rest = page_keys[tuple(s[-n:])], s[:-n]
                 break
         if not hit:
-            unmatched.append(r); continue
+            unmatched.append(r)
+            continue
         ver = rest[-1] if rest and VERSION.match(rest[-1]) else ""
         wt = (num(r[weight_col]) or 0) if weight_col else 1
         for d in (agg[hit["path"]], by_ver[(hit["path"], ver)]):
@@ -102,23 +113,29 @@ def main(argv=None):
                 d[m] += (num(r[m]) or 0) * wt
             d["__w"] += wt
 
-    out = Path(a.out); out.parent.mkdir(parents=True, exist_ok=True)
+    out = Path(a.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", newline="", encoding="utf-8") as f:
-        w = safeio.DictWriter(f, fieldnames=list(pages[0]) + metrics); w.writeheader()
+        w = safeio.DictWriter(f, fieldnames=list(pages[0]) + metrics)
+        w.writeheader()
         for p in pages:
             w.writerow({**p, **(final(agg[p["path"]], metrics, additive) if p["path"] in agg else dict.fromkeys(metrics, ""))})
     with open(out.with_name("joined_by_version.csv"), "w", newline="", encoding="utf-8") as f:
-        w = safeio.writer(f); w.writerow(["path", "version"] + metrics)
+        w = safeio.writer(f)
+        w.writerow(["path", "version"] + metrics)
         for (pth, ver), d in sorted(by_ver.items()):
-            f_ = final(d, metrics, additive); w.writerow([pth, ver] + [f_[m] for m in metrics])
+            f_ = final(d, metrics, additive)
+            w.writerow([pth, ver] + [f_[m] for m in metrics])
     with open(out.with_name("unmatched.csv"), "w", newline="", encoding="utf-8") as f:
-        w = safeio.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(unmatched)
+        w = safeio.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(unmatched)
     print(f"key={key!r} summed={additive} weighted-mean (by {weight_col})={ratio}")
     users = [m for m in additive if re.search(r"user|visitor|session", m, re.I)]
     if users:
         print(f"warning: {users} summed across URLs/versions; this overcounts unique users")
     print(f"pages with traffic: {len(agg)}/{len(pages)}; analytics rows: {len(rows)}, unmatched: {len(unmatched)}")
-    print(f"versions seen: {sorted({v for _, v in by_ver}) }")
+    print(f"versions seen: {sorted({v for _, v in by_ver})}")
     print(f"wrote {out}, {out.with_name('joined_by_version.csv')}, {out.with_name('unmatched.csv')}")
 
 

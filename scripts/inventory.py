@@ -15,7 +15,16 @@ Writes to --out (default ./docs-inventory):
 
 Stdlib + PyYAML only. Read-only on the repo.
 """
-import argparse, fnmatch, hashlib, json, os, re, subprocess, sys, time
+
+import argparse
+import fnmatch
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -29,15 +38,19 @@ except ImportError:  # degrade: no config/front matter parsing
 
 # ---------- YAML helpers ----------
 if yaml:
+
     class _Loader(yaml.SafeLoader):
         pass
+
     def _any_tag(loader, suffix, node):
         if isinstance(node, yaml.ScalarNode):
             return loader.construct_scalar(node)
         if isinstance(node, yaml.SequenceNode):
             return loader.construct_sequence(node)
         return loader.construct_mapping(node)
+
     _Loader.add_multi_constructor("", _any_tag)  # !ENV, !!python/name:..., etc.
+
 
 def load_yaml(path):
     if not yaml:
@@ -50,6 +63,7 @@ def load_yaml(path):
     except (OSError, ValueError, yaml.YAMLError) as e:
         print(f"warn: cannot parse {path}: {e}", file=sys.stderr)
         return {}
+
 
 def load_config(path, root=None, depth=0):
     """Load an MkDocs config, resolving INHERIT (child keys override; nav replaced).
@@ -77,6 +91,7 @@ def load_config(path, root=None, depth=0):
         return merged
     return cfg
 
+
 def _conf(section, name):
     """plugins / markdown_extensions may be a list (of str|dict) or a mapping."""
     if isinstance(section, dict):
@@ -88,11 +103,14 @@ def _conf(section, name):
             return {}
     return None
 
+
 def plugin_conf(cfg, name):
     return _conf(cfg.get("plugins"), name)
 
+
 def md_ext_conf(cfg, name):
     return _conf(cfg.get("markdown_extensions"), name)
+
 
 # ---------- nav ----------
 def walk_nav(nav, section=(), depth=1, out=None):
@@ -103,13 +121,14 @@ def walk_nav(nav, section=(), depth=1, out=None):
         elif isinstance(item, dict):
             for title, val in item.items():
                 if isinstance(val, list):
-                    out.append({"title": str(title), "path": "", "depth": depth,
-                                "section": " > ".join(section), "is_section": True})
+                    out.append(
+                        {"title": str(title), "path": "", "depth": depth, "section": " > ".join(section), "is_section": True}
+                    )
                     walk_nav(val, section + (str(title),), depth + 1, out)
                 else:
-                    out.append({"title": str(title), "path": str(val or ""), "depth": depth,
-                                "section": " > ".join(section)})
+                    out.append({"title": str(title), "path": str(val or ""), "depth": depth, "section": " > ".join(section)})
     return out
+
 
 # ---------- markdown parsing ----------
 FENCE = re.compile(r"^\s*(```|~~~)")
@@ -122,10 +141,38 @@ VAR = re.compile(r"\{\{\s*([A-Za-z_][\w\.]*)[^}]*\}\}")
 ADMON = re.compile(r"^\s*(!!!|\?\?\?\+?)\s+(\w+)")
 OL = re.compile(r"^\s*\d+\.\s+\S")
 TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
-TASK_VERBS = ("install", "configure", "enable", "disable", "create", "set up", "setup",
-              "upgrade", "run", "connect", "deploy", "add", "remove", "uninstall", "migrate",
-              "back up", "restore", "rotate", "verify", "start", "stop", "update", "change",
-              "use ", "build", "generate", "monitor", "troubleshoot", "check")
+TASK_VERBS = (
+    "install",
+    "configure",
+    "enable",
+    "disable",
+    "create",
+    "set up",
+    "setup",
+    "upgrade",
+    "run",
+    "connect",
+    "deploy",
+    "add",
+    "remove",
+    "uninstall",
+    "migrate",
+    "back up",
+    "restore",
+    "rotate",
+    "verify",
+    "start",
+    "stop",
+    "update",
+    "change",
+    "use ",
+    "build",
+    "generate",
+    "monitor",
+    "troubleshoot",
+    "check",
+)
+
 
 def split_front_matter(text):
     if text.startswith("---"):
@@ -137,8 +184,9 @@ def split_front_matter(text):
                     fm = yaml.load(m.group(1), Loader=_Loader) or {}  # nosec B506 - SafeLoader subclass
                 except (ValueError, yaml.YAMLError):
                     fm = {"_unparseable": True}
-            return fm if isinstance(fm, dict) else {}, text[m.end():]
+            return fm if isinstance(fm, dict) else {}, text[m.end() :]
     return {}, text
+
 
 def parse_page(text):
     fm, body = split_front_matter(text)
@@ -167,10 +215,17 @@ def parse_page(text):
     prose_text = "\n".join(prose)
     words = len(re.findall(r"[A-Za-z0-9_']+", re.sub(r"\(([^)]*)\)", " ", prose_text)))
     return {
-        "fm": fm, "body": body, "prose": prose_text, "headings": headings,
-        "code_blocks": code_blocks, "admonitions": admons, "ol_items": ol_items,
-        "table_rows": table_rows, "words": words,
+        "fm": fm,
+        "body": body,
+        "prose": prose_text,
+        "headings": headings,
+        "code_blocks": code_blocks,
+        "admonitions": admons,
+        "ol_items": ol_items,
+        "table_rows": table_rows,
+        "words": words,
     }
+
 
 def paragraphs(prose):
     for block in re.split(r"\n\s*\n", prose):
@@ -178,6 +233,7 @@ def paragraphs(prose):
         if not b or b.startswith(("#", "|", "--8<--", "!!!", "???")):
             continue
         yield b
+
 
 def guess_type(rel, p):
     """Heuristic topic type + the signals that drove it. Always a guess; verify."""
@@ -190,13 +246,20 @@ def guess_type(rel, p):
     if p["words"] < 150 and links_out >= 4:
         return "landing", f"words={p['words']} links={links_out}"
     task_heads = sum(1 for h in hs if h.startswith(TASK_VERBS))
-    if p["ol_items"] >= 3: sig.append(f"ol={p['ol_items']}")
-    if task_heads: sig.append(f"verb_headings={task_heads}")
-    if p["code_blocks"] >= 2: sig.append(f"code={p['code_blocks']}")
+    if p["ol_items"] >= 3:
+        sig.append(f"ol={p['ol_items']}")
+    if task_heads:
+        sig.append(f"verb_headings={task_heads}")
+    if p["code_blocks"] >= 2:
+        sig.append(f"code={p['code_blocks']}")
     task_score = (p["ol_items"] >= 3) + (task_heads >= 1) + (p["code_blocks"] >= 2)
-    ref_score = (p["table_rows"] >= 8) + any(k in low for k in ("reference", "parameters", "functions", "variables", "commands/", "api")) \
+    ref_score = (
+        (p["table_rows"] >= 8)
+        + any(k in low for k in ("reference", "parameters", "functions", "variables", "commands/", "api"))
         + (p["table_rows"] >= 3 and p["words"] < 400)
-    if p["table_rows"]: sig.append(f"table_rows={p['table_rows']}")
+    )
+    if p["table_rows"]:
+        sig.append(f"table_rows={p['table_rows']}")
     if ref_score >= 2 or (ref_score == 1 and task_score == 0 and p["table_rows"] >= 8):
         t = "reference"
     elif task_score >= 2:
@@ -209,24 +272,39 @@ def guess_type(rel, p):
         t = "mixed"
     return t, " ".join(sig)
 
+
 # ---------- git ----------
 def git_history(repo, subdir, bulk=30, skip_subject=None):
     """Last commit time + commit count per file. Commits touching > bulk files
     (reformat, rename, link sweep) are ignored for age so they don't fake freshness."""
     try:
-        shallow = subprocess.run(["git", "-C", str(repo), "rev-parse", "--is-shallow-repository"],
-                                 capture_output=True, text=True, check=False, env=safeio.GIT_ENV,
-                                 timeout=safeio.GIT_TIMEOUT).stdout.strip() == "true"
-        out = subprocess.run(["git", "-C", str(repo), "log", "--format=__C__%ct %s", "--name-only",
-                              "--", str(subdir)], capture_output=True, text=True, check=True,
-                             env=safeio.GIT_ENV, timeout=safeio.GIT_TIMEOUT).stdout
+        shallow = (
+            subprocess.run(
+                ["git", "-C", str(repo), "rev-parse", "--is-shallow-repository"],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=safeio.GIT_ENV,
+                timeout=safeio.GIT_TIMEOUT,
+            ).stdout.strip()
+            == "true"
+        )
+        out = subprocess.run(
+            ["git", "-C", str(repo), "log", "--format=__C__%ct %s", "--name-only", "--", str(subdir)],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=safeio.GIT_ENV,
+            timeout=safeio.GIT_TIMEOUT,
+        ).stdout
     except (OSError, subprocess.SubprocessError):
         return {}, {}, None, 0
     commits, cur = [], None
     for ln in out.splitlines():
         if ln.startswith("__C__"):
             ts_, _, subj = ln[5:].partition(" ")
-            cur = (int(ts_), [], subj); commits.append(cur)
+            cur = (int(ts_), [], subj)
+            commits.append(cur)
         elif ln.strip() and cur:
             cur[1].append(ln.strip())
     last, last_any, count, skipped = {}, {}, defaultdict(int), 0
@@ -242,25 +320,41 @@ def git_history(repo, subdir, bulk=30, skip_subject=None):
         last.setdefault(f, ts)
     return last, count, shallow, skipped
 
+
 # ---------- main ----------
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("repo")
-    ap.add_argument("--config", action="append", help="mkdocs config(s), relative to repo; repeatable. Default: auto-detect mkdocs*.yml")
+    ap.add_argument(
+        "--config", action="append", help="mkdocs config(s), relative to repo; repeatable. Default: auto-detect mkdocs*.yml"
+    )
     ap.add_argument("--docs-dir", help="override docs_dir (relative to repo)")
     ap.add_argument("--out", default="docs-inventory")
     ap.add_argument("--min-dup-words", type=int, default=25)
-    ap.add_argument("--bulk-commit-files", type=int, default=30,
-                    help="ignore commits touching more than N files when computing page age (0 = off)")
-    ap.add_argument("--ignore-commit-subject", metavar="REGEX",
-                    help="also ignore commits whose subject matches REGEX for page age, e.g. 'mentions to [0-9]+|bump version'")
-    ap.add_argument("--type-rule", action="append", default=[], metavar="GLOB=TYPE",
-                    help="force topic type for paths matching GLOB (relative to docs_dir), e.g. 'commands/*.md=reference'; repeatable, first match wins")
+    ap.add_argument(
+        "--bulk-commit-files",
+        type=int,
+        default=30,
+        help="ignore commits touching more than N files when computing page age (0 = off)",
+    )
+    ap.add_argument(
+        "--ignore-commit-subject",
+        metavar="REGEX",
+        help="also ignore commits whose subject matches REGEX for page age, e.g. 'mentions to [0-9]+|bump version'",
+    )
+    ap.add_argument(
+        "--type-rule",
+        action="append",
+        default=[],
+        metavar="GLOB=TYPE",
+        help="force topic type for paths matching GLOB (relative to docs_dir), e.g. 'commands/*.md=reference'; repeatable, first match wins",
+    )
     a = ap.parse_args(argv)
 
     repo = Path(a.repo).resolve()
-    cfg_paths = [repo / c for c in a.config] if a.config else (
-        safeio.files(repo, "mkdocs*.yml") + safeio.files(repo, "*/mkdocs*.yml"))
+    cfg_paths = (
+        [repo / c for c in a.config] if a.config else (safeio.files(repo, "mkdocs*.yml") + safeio.files(repo, "*/mkdocs*.yml"))
+    )
     configs = {}
     for cp in cfg_paths:
         c = load_config(cp, repo)
@@ -284,7 +378,8 @@ def main(argv=None):
         _c = next(iter(configs.values()))[1]
         for _, (_cp, _cc) in configs.items():  # prefer a config that sets site_url
             if _cc.get("site_url"):
-                _c = _cc; break
+                _c = _cc
+                break
         site_url = str(_c.get("site_url") or "")
         dir_urls = _c.get("use_directory_urls", True) is not False
     if not docs_dir.is_dir():
@@ -314,8 +409,7 @@ def main(argv=None):
         sc = md_ext_conf(c, "pymdownx.snippets")
         if sc and sc.get("base_path"):
             bp = sc["base_path"]
-            snip_bases += [cfg_root / b for b in (bp if isinstance(bp, list) else [bp])
-                           if safeio.inside(cfg_root / str(b), repo)]
+            snip_bases += [cfg_root / b for b in (bp if isinstance(bp, list) else [bp]) if safeio.inside(cfg_root / str(b), repo)]
 
     # nav
     nav_rows, nav_sets = [], {}
@@ -326,15 +420,27 @@ def main(argv=None):
             path = e["path"]
             external = bool(re.match(r"^[a-z]+://", path))
             exists = "" if (not path or external) else (docs_dir / path).is_file()
-            nav_rows.append({"config": name, "order": i, "depth": e["depth"], "section": e["section"],
-                             "title": e["title"], "path": path, "is_section": e.get("is_section", False),
-                             "external": external, "exists": exists})
+            nav_rows.append(
+                {
+                    "config": name,
+                    "order": i,
+                    "depth": e["depth"],
+                    "section": e["section"],
+                    "title": e["title"],
+                    "path": path,
+                    "is_section": e.get("is_section", False),
+                    "external": external,
+                    "exists": exists,
+                }
+            )
             if path and not external:
                 nav_sets[name][path] = e
 
     # pages
     md_files = safeio.rglob(docs_dir, "*.md")
-    last, count, shallow, bulk_skipped = git_history(repo, docs_dir.relative_to(repo) if docs_dir != repo else ".", a.bulk_commit_files, a.ignore_commit_subject)
+    last, count, shallow, bulk_skipped = git_history(
+        repo, docs_dir.relative_to(repo) if docs_dir != repo else ".", a.bulk_commit_files, a.ignore_commit_subject
+    )
     now = time.time()
     pages, link_rows, par_index = [], [], defaultdict(list)
     snippet_targets = set()
@@ -372,12 +478,15 @@ def main(argv=None):
                 continue
             tgt = (docs_dir / path_part) if path_part.startswith("/") else (p.parent / path_part)
             tgt = Path(os.path.normpath(tgt))
-            ok = tgt.exists() or (tgt.is_dir() and (tgt / "index.md").exists()) \
-                or Path(str(tgt).rstrip("/") + ".md").exists() or (Path(str(tgt).rstrip("/")) / "index.md").exists()
+            ok = (
+                tgt.exists()
+                or (tgt.is_dir() and (tgt / "index.md").exists())
+                or Path(str(tgt).rstrip("/") + ".md").exists()
+                or (Path(str(tgt).rstrip("/")) / "index.md").exists()
+            )
             if not ok:
                 n_broken += 1
-            link_rows.append({"page": rel, "kind": kind, "target": t, "scope": "internal",
-                              "status": "ok" if ok else "broken"})
+            link_rows.append({"page": rel, "kind": kind, "target": t, "scope": "internal", "status": "ok" if ok else "broken"})
         snips = SNIP.findall(pp["body"]) + INCL.findall(pp["body"])
         for s in snips:
             found = None
@@ -390,8 +499,9 @@ def main(argv=None):
                     snippet_targets.add(str(found.relative_to(docs_dir.resolve())).replace(os.sep, "/"))
                 except ValueError:
                     pass
-            link_rows.append({"page": rel, "kind": "snippet", "target": s, "scope": "internal",
-                              "status": "ok" if found else "broken"})
+            link_rows.append(
+                {"page": rel, "kind": "snippet", "target": s, "scope": "internal", "status": "ok" if found else "broken"}
+            )
             if not found:
                 n_broken += 1
         vars_used = sorted(set(VAR.findall(pp["body"])))
@@ -400,7 +510,9 @@ def main(argv=None):
         for para in paragraphs(pp["prose"]):
             norm = re.sub(r"\s+", " ", para.lower())
             if len(norm.split()) >= a.min_dup_words:
-                par_index[hashlib.sha1(norm.encode(), usedforsecurity=False).hexdigest()[:12]].append((rel, para[:160].replace("\n", " ")))
+                par_index[hashlib.sha1(norm.encode(), usedforsecurity=False).hexdigest()[:12]].append(
+                    (rel, para[:160].replace("\n", " "))
+                )
 
         git_rel = str(p.relative_to(repo)).replace(os.sep, "/")
         ts = last.get(git_rel)
@@ -411,16 +523,26 @@ def main(argv=None):
         else:
             url_path = stem + ".html"
         row = {
-            "path": rel, "url": (site_url.rstrip("/") + "/" + url_path) if site_url else "/" + url_path, "title": title,
-            "words": pp["words"], "h2": sum(1 for l, _ in pp["headings"] if l == 2),
+            "path": rel,
+            "url": (site_url.rstrip("/") + "/" + url_path) if site_url else "/" + url_path,
+            "title": title,
+            "words": pp["words"],
+            "h2": sum(1 for l, _ in pp["headings"] if l == 2),
             "max_heading": max([l for l, _ in pp["headings"]] or [0]),
             "h1_count": sum(1 for l, _ in pp["headings"] if l == 1),
-            "code_blocks": pp["code_blocks"], "admonitions": pp["admonitions"],
-            "ol_items": pp["ol_items"], "table_rows": pp["table_rows"],
-            "links_internal": n_int, "links_external": n_ext, "links_broken": n_broken,
-            "snippets": len(snips), "vars_used": " ".join(vars_used), "vars_undefined": " ".join(undefined),
+            "code_blocks": pp["code_blocks"],
+            "admonitions": pp["admonitions"],
+            "ol_items": pp["ol_items"],
+            "table_rows": pp["table_rows"],
+            "links_internal": n_int,
+            "links_external": n_ext,
+            "links_broken": n_broken,
+            "snippets": len(snips),
+            "vars_used": " ".join(vars_used),
+            "vars_undefined": " ".join(undefined),
             "front_matter_keys": " ".join(sorted(fm.keys())) if isinstance(fm, dict) else "",
-            "type_guess": ttype, "type_signals": sig,
+            "type_guess": ttype,
+            "type_signals": sig,
             "last_commit": time.strftime("%Y-%m-%d", time.gmtime(ts)) if ts else "",
             "days_since_commit": int((now - ts) / 86400) if ts else "",
             "commits": count.get(git_rel, 0),
@@ -449,8 +571,14 @@ def main(argv=None):
 
     # ---------- summary ----------
     in_any_nav = set().union(*[set(s) for s in nav_sets.values()]) if nav_sets else set()
-    orphans = sorted(r["path"] for r in pages if nav_sets and r["path"] not in in_any_nav
-                     and not r["used_as_snippet"] and not r["path"].startswith(("snippets/", "_", "templates/")))
+    orphans = sorted(
+        r["path"]
+        for r in pages
+        if nav_sets
+        and r["path"] not in in_any_nav
+        and not r["used_as_snippet"]
+        and not r["path"].startswith(("snippets/", "_", "templates/"))
+    )
     per_config = {}
     for name, s in nav_sets.items():
         per_config[name] = {
@@ -458,8 +586,15 @@ def main(argv=None):
             "nav_missing_files": sorted(p for p in s if p not in all_rel),
             "pages_not_in_this_nav": len([r for r in pages if r["path"] not in s]),
             "max_depth": max([e["depth"] for e in s.values()] or [0]),
-            "dup_nav_entries": sorted({r["path"] for r in nav_rows if r["config"] == name and r["path"]
-                                      and sum(1 for x in nav_rows if x["config"] == name and x["path"] == r["path"]) > 1}),
+            "dup_nav_entries": sorted(
+                {
+                    r["path"]
+                    for r in nav_rows
+                    if r["config"] == name
+                    and r["path"]
+                    and sum(1 for x in nav_rows if x["config"] == name and x["path"] == r["path"]) > 1
+                }
+            ),
         }
     nav_drift = {}
     names = list(nav_sets)
@@ -469,14 +604,19 @@ def main(argv=None):
             if A != B:
                 nav_drift[f"{names[i]} vs {names[j]}"] = {"only_in_first": sorted(A - B), "only_in_second": sorted(B - A)}
     type_mix = defaultdict(int)
-    for r in pages: type_mix[r["type_guess"]] += 1
+    for r in pages:
+        type_mix[r["type_guess"]] += 1
     ages = sorted(r["days_since_commit"] for r in pages if r["days_since_commit"] != "")
     summary = {
-        "repo": str(repo), "docs_dir": str(docs_dir.relative_to(repo)) if docs_dir != repo else ".",
-        "configs": list(configs), "git_shallow": shallow,
-        "pages": len(pages), "words_total": sum(r["words"] for r in pages),
+        "repo": str(repo),
+        "docs_dir": str(docs_dir.relative_to(repo)) if docs_dir != repo else ".",
+        "configs": list(configs),
+        "git_shallow": shallow,
+        "pages": len(pages),
+        "words_total": sum(r["words"] for r in pages),
         "type_mix_guess": dict(type_mix),
-        "per_config": per_config, "nav_drift": nav_drift,
+        "per_config": per_config,
+        "nav_drift": nav_drift,
         "orphans_not_in_any_nav": orphans,
         "broken_internal": [lr for lr in link_rows if lr["status"] == "broken"],
         "undefined_variables": {r["path"]: r["vars_undefined"] for r in pages if r["vars_undefined"]},
@@ -484,45 +624,64 @@ def main(argv=None):
         "pages_multiple_h1": [r["path"] for r in pages if r["h1_count"] > 1],
         "duplicate_paragraph_groups": len(dups),
         "bulk_commits_ignored_for_age": bulk_skipped,
-        "age_days": {"median": ages[len(ages)//2] if ages else None,
-                     "over_365": sum(1 for x in ages if x > 365), "known": len(ages)},
-        "front_matter_usage": {k: sum(1 for r in pages if k in r["front_matter_keys"].split())
-                               for k in sorted({k for r in pages for k in r["front_matter_keys"].split()})},
+        "age_days": {
+            "median": ages[len(ages) // 2] if ages else None,
+            "over_365": sum(1 for x in ages if x > 365),
+            "known": len(ages),
+        },
+        "front_matter_usage": {
+            k: sum(1 for r in pages if k in r["front_matter_keys"].split())
+            for k in sorted({k for r in pages for k in r["front_matter_keys"].split()})
+        },
     }
 
-    out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+
     def wcsv(name, rows, fields=None):
         fields = fields or (list(rows[0].keys()) if rows else ["empty"])
         with open(out / name, "w", newline="", encoding="utf-8") as f:
-            w = safeio.DictWriter(f, fieldnames=fields, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
+            w = safeio.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+            w.writeheader()
+            w.writerows(rows)
+
     wcsv("pages.csv", pages)
     wcsv("nav.csv", nav_rows, ["config", "order", "depth", "section", "title", "path", "is_section", "external", "exists"])
     wcsv("links.csv", link_rows, ["page", "kind", "target", "scope", "status"])
-    wcsv("duplicates.csv", [{"group": h, "page": pg, "excerpt": ex} for h, v in dups for pg, ex in v],
-         ["group", "page", "excerpt"])
+    wcsv(
+        "duplicates.csv", [{"group": h, "page": pg, "excerpt": ex} for h, v in dups for pg, ex in v], ["group", "page", "excerpt"]
+    )
     (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
 
-    md = [f"# Inventory: {repo.name}", "",
-          f"- docs_dir: `{summary['docs_dir']}`; configs: {', '.join(summary['configs']) or 'none (plain Markdown)'}",
-          f"- pages: {summary['pages']}; words: {summary['words_total']}",
-          f"- type mix (heuristic): {summary['type_mix_guess']}",
-          f"- git: median age {summary['age_days']['median']} d, >365 d: {summary['age_days']['over_365']}"
-          + f"; {bulk_skipped} bulk commits (>{a.bulk_commit_files} files) ignored"
-          + (" (SHALLOW CLONE: ages/commit counts are lower bounds)" if shallow else ""),
-          f"- orphans (not in any nav): {len(orphans)}",
-          f"- broken internal links/snippets: {len(summary['broken_internal'])}",
-          f"- pages with undefined variables: {len(summary['undefined_variables'])}",
-          f"- duplicate paragraph groups (>= {a.min_dup_words} words): {len(dups)}", ""]
+    md = [
+        f"# Inventory: {repo.name}",
+        "",
+        f"- docs_dir: `{summary['docs_dir']}`; configs: {', '.join(summary['configs']) or 'none (plain Markdown)'}",
+        f"- pages: {summary['pages']}; words: {summary['words_total']}",
+        f"- type mix (heuristic): {summary['type_mix_guess']}",
+        f"- git: median age {summary['age_days']['median']} d, >365 d: {summary['age_days']['over_365']}"
+        + f"; {bulk_skipped} bulk commits (>{a.bulk_commit_files} files) ignored"
+        + (" (SHALLOW CLONE: ages/commit counts are lower bounds)" if shallow else ""),
+        f"- orphans (not in any nav): {len(orphans)}",
+        f"- broken internal links/snippets: {len(summary['broken_internal'])}",
+        f"- pages with undefined variables: {len(summary['undefined_variables'])}",
+        f"- duplicate paragraph groups (>= {a.min_dup_words} words): {len(dups)}",
+        "",
+    ]
     for name, pc in per_config.items():
-        md.append(f"## {name}: {pc['nav_pages']} nav pages, max depth {pc['max_depth']}, "
-                  f"{len(pc['nav_missing_files'])} missing files, {len(pc['dup_nav_entries'])} duplicate entries")
-        for m in pc["nav_missing_files"]: md.append(f"- missing: `{m}`")
+        md.append(
+            f"## {name}: {pc['nav_pages']} nav pages, max depth {pc['max_depth']}, "
+            f"{len(pc['nav_missing_files'])} missing files, {len(pc['dup_nav_entries'])} duplicate entries"
+        )
+        for m in pc["nav_missing_files"]:
+            md.append(f"- missing: `{m}`")
     for k, d in nav_drift.items():
         md.append(f"## Nav drift: {k}")
         md.append(f"- only in first: {len(d['only_in_first'])}; only in second: {len(d['only_in_second'])}")
     (out / "summary.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     print("\n".join(md))
     print(f"\nwrote {out}/: pages.csv nav.csv links.csv duplicates.csv summary.json summary.md")
+
 
 if __name__ == "__main__":
     main()

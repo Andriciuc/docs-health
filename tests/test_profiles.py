@@ -1,5 +1,8 @@
 """Tests for the profile engine (scripts/profile_coverage.py). Run: python -m unittest discover -s tests"""
-import sys, tempfile, unittest
+
+import sys
+import tempfile
+import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +31,7 @@ class GenericProfileTest(unittest.TestCase):
 
     def test_deprecated_still_taught(self):
         row = self.r[("setting", "cache.mode")]
-        self.assertEqual(row["deprecated_in_use"], "guides/config.md")   # replacement cache.policy not mentioned
+        self.assertEqual(row["deprecated_in_use"], "guides/config.md")  # replacement cache.policy not mentioned
 
     def test_regex_source_and_also_in(self):
         self.assertEqual(self.r[("flag", "--verbose")]["status"], "mentioned")

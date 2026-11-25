@@ -1,6 +1,11 @@
 """Tests for scripts/inventory.py, run in-process on a small MkDocs repo with git history.
 Run: python -m unittest discover -s tests"""
-import csv, json, sys, tempfile, unittest
+
+import csv
+import json
+import sys
+import tempfile
+import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -48,7 +53,9 @@ class InventoryTest(unittest.TestCase):
         self.assertEqual([b["target"] for b in self.summary["broken_internal"]], ["nope.md"])
         self.assertEqual(self.pages["guide/install.md"]["links_inbound"], "1")
         links = list(csv.DictReader(open(self.out / "links.csv", encoding="utf-8")))
-        self.assertIn({"page": "guide/install.md", "kind": "snippet", "target": "note.md", "scope": "internal", "status": "ok"}, links)
+        self.assertIn(
+            {"page": "guide/install.md", "kind": "snippet", "target": "note.md", "scope": "internal", "status": "ok"}, links
+        )
 
     def test_duplicates(self):
         self.assertEqual(self.summary["duplicate_paragraph_groups"], 1)

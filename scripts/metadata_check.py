@@ -40,7 +40,10 @@ Writes to --out (default ./docs-metadata):
 
 Stdlib + PyYAML (optional: without it, simple `key: value` front matter is read).
 """
-import argparse, re, sys
+
+import argparse
+import re
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -56,11 +59,18 @@ FENCE = re.compile(r"^\s*(```|~~~)")
 H1 = re.compile(r"^#\s+(.+?)\s*#*\s*$")
 SEPARATORS = (" - ", " – ", " — ", ": ", " | ")  # noqa: RUF001 - en dash is a real title separator
 SEVERITY = {
-    "missing_title": "error", "duplicate_title": "error",
-    "missing_description": "warn", "duplicate_description": "warn", "short_title": "warn",
-    "body_h1_with_title": "warn", "multiple_h1": "warn",
-    "title_h1_mismatch": "info", "long_title": "info", "short_description": "info",
-    "long_description": "info", "shared_prefix": "info",
+    "missing_title": "error",
+    "duplicate_title": "error",
+    "missing_description": "warn",
+    "duplicate_description": "warn",
+    "short_title": "warn",
+    "body_h1_with_title": "warn",
+    "multiple_h1": "warn",
+    "title_h1_mismatch": "info",
+    "long_title": "info",
+    "short_description": "info",
+    "long_description": "info",
+    "shared_prefix": "info",
 }
 
 
@@ -70,7 +80,7 @@ def front_matter(text):
     end = text.find("\n---", 3)
     if end < 0:
         return {}, text
-    raw, body = text[3:end], text[end + 4:]
+    raw, body = text[3:end], text[end + 4 :]
     if yaml:
         try:
             data = yaml.safe_load(raw) or {}
@@ -109,8 +119,7 @@ def prefix(title):
     return ""
 
 
-def run(root, globs, title_key, desc_key, title_max, desc_min, desc_max, prefix_min,
-        short_words=1, template="{title}"):
+def run(root, globs, title_key, desc_key, title_max, desc_min, desc_max, prefix_min, short_words=1, template="{title}"):
     root = Path(root)
     pages = []
     seen = set()
@@ -127,9 +136,20 @@ def run(root, globs, title_key, desc_key, title_max, desc_min, desc_max, prefix_
             title = fm_title or (norm(heads[0]) if heads else "")
             desc = norm(fm.get(desc_key))
             rendered = template.replace("{title}", title) if title else ""
-            pages.append({"path": rel, "title": title, "title_source": "front matter" if fm_title else ("h1" if heads else ""),
-                          "rendered_title": rendered, "title_len": len(rendered), "description": desc, "desc_len": len(desc),
-                          "h1_count": len(heads), "first_h1": norm(heads[0]) if heads else "", "_fm_title": fm_title})
+            pages.append(
+                {
+                    "path": rel,
+                    "title": title,
+                    "title_source": "front matter" if fm_title else ("h1" if heads else ""),
+                    "rendered_title": rendered,
+                    "title_len": len(rendered),
+                    "description": desc,
+                    "desc_len": len(desc),
+                    "h1_count": len(heads),
+                    "first_h1": norm(heads[0]) if heads else "",
+                    "_fm_title": fm_title,
+                }
+            )
     titles = Counter(p["title"].lower() for p in pages if p["title"])
     descs = Counter(p["description"].lower() for p in pages if p["description"])
     prefixes = Counter(prefix(p["title"]) for p in pages if prefix(p["title"]))
@@ -171,7 +191,19 @@ def run(root, globs, title_key, desc_key, title_max, desc_min, desc_max, prefix_
 def write(pages, prefixes, out, root, prefix_min):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    cols = ["path", "title", "title_source", "rendered_title", "title_len", "description", "desc_len", "h1_count", "first_h1", "worst", "issues"]
+    cols = [
+        "path",
+        "title",
+        "title_source",
+        "rendered_title",
+        "title_len",
+        "description",
+        "desc_len",
+        "h1_count",
+        "first_h1",
+        "worst",
+        "issues",
+    ]
     with open(out / "metadata.csv", "w", newline="", encoding="utf-8") as f:
         w = safeio.DictWriter(f, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
@@ -180,8 +212,7 @@ def write(pages, prefixes, out, root, prefix_min):
     for p in pages:
         for i in filter(None, p["issues"].split(";")):
             by_issue[i].append(p)
-    md = [f"# Metadata: {root}", "", f"{len(pages)} pages checked.", "",
-          "| severity | issue | pages |", "|---|---|---|"]
+    md = [f"# Metadata: {root}", "", f"{len(pages)} pages checked.", "", "| severity | issue | pages |", "|---|---|---|"]
     order = sorted(by_issue, key=lambda i: (["error", "warn", "info"].index(SEVERITY[i]), i))
     md += [f"| {SEVERITY[i]} | {i} | {len(by_issue[i])} |" for i in order]
     shared = [(k, n) for k, n in prefixes.most_common() if n >= prefix_min]
@@ -212,12 +243,22 @@ if __name__ == "__main__":
     ap.add_argument("--desc-max", type=int, default=160)
     ap.add_argument("--prefix-min", type=int, default=3)
     ap.add_argument("--short-title-words", type=int, default=1)
-    ap.add_argument("--title-template", default="{title}",
-                    help="how the site renders <title>, e.g. 'Valkey Documentation · {title}'")
+    ap.add_argument(
+        "--title-template", default="{title}", help="how the site renders <title>, e.g. 'Valkey Documentation · {title}'"
+    )
     a = ap.parse_args()
-    pages, prefixes = run(a.root, a.glob or ["**/*.md"], a.title_key, a.desc_key,
-                          a.title_max, a.desc_min, a.desc_max, a.prefix_min,
-                          a.short_title_words, a.title_template)
+    pages, prefixes = run(
+        a.root,
+        a.glob or ["**/*.md"],
+        a.title_key,
+        a.desc_key,
+        a.title_max,
+        a.desc_min,
+        a.desc_max,
+        a.prefix_min,
+        a.short_title_words,
+        a.title_template,
+    )
     write(pages, prefixes, a.out, a.root, a.prefix_min)
     c = Counter(p["worst"] for p in pages)
     sys.stderr.write(f"{len(pages)} pages: {c.get('error', 0)} with errors, {c.get('warn', 0)} with warnings; wrote {a.out}/\n")
