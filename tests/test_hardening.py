@@ -5,6 +5,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "scripts" / "checks")]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import tmp_root  # noqa: F401 - temp dirs go under one folder that is removed at exit
 import docs_coverage
 import profile_coverage as pc
 import safeio
