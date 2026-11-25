@@ -242,8 +242,8 @@ def git_history(repo, subdir, bulk=30, skip_subject=None):
         last.setdefault(f, ts)
     return last, count, shallow, skipped
 
-# ---------- main ----------
-def main(argv=None):
+# ---------- setup ----------
+def parse_args(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("repo")
     ap.add_argument("--config", action="append", help="mkdocs config(s), relative to repo; repeatable. Default: auto-detect mkdocs*.yml")
@@ -256,20 +256,27 @@ def main(argv=None):
                     help="also ignore commits whose subject matches REGEX for page age, e.g. 'mentions to [0-9]+|bump version'")
     ap.add_argument("--type-rule", action="append", default=[], metavar="GLOB=TYPE",
                     help="force topic type for paths matching GLOB (relative to docs_dir), e.g. 'commands/*.md=reference'; repeatable, first match wins")
-    a = ap.parse_args(argv)
+    return ap.parse_args(argv)
 
-    repo = Path(a.repo).resolve()
-    cfg_paths = [repo / c for c in a.config] if a.config else (
+
+def load_configs(repo, names):
+    """{config path relative to repo: (path, merged config)}: the --config files, else mkdocs*.yml
+    in the repo root or one folder down."""
+    cfg_paths = [repo / c for c in names] if names else (
         safeio.files(repo, "mkdocs*.yml") + safeio.files(repo, "*/mkdocs*.yml"))
     configs = {}
     for cp in cfg_paths:
         c = load_config(cp, repo)
         if c:
             configs[str(cp.relative_to(repo))] = (cp, c)
+    return configs
 
-    # docs_dir: from first config (they normally share it)
-    if a.docs_dir:
-        docs_dir = repo / a.docs_dir
+
+def locate_docs(repo, configs, docs_dir_arg):
+    """(docs_dir, cfg_root, site_url, use_directory_urls). docs_dir comes from --docs-dir or the first
+    config (configs normally share it). Exits if it points outside the repo or does not exist."""
+    if docs_dir_arg:
+        docs_dir = repo / docs_dir_arg
         cfg_root = repo
     elif configs:
         cp, c = next(iter(configs.values()))
@@ -289,8 +296,11 @@ def main(argv=None):
         dir_urls = _c.get("use_directory_urls", True) is not False
     if not docs_dir.is_dir():
         sys.exit(f"docs dir not found: {docs_dir}")
+    return docs_dir, cfg_root, site_url, dir_urls
 
-    # variables (mkdocs-macros include_yaml + extra)
+
+def known_variables(repo, configs, cfg_root):
+    """(variable names pages may use, whether mkdocs-macros is on): macros include_yaml files and extra."""
     known_vars = {"config", "page", "nav", "base_url", "extra", "git", "environment", "macros_info", "now", "fix_url"}
     var_files = []
     for _, (cp, c) in configs.items():
@@ -308,7 +318,11 @@ def main(argv=None):
         if safeio.readable(vf, repo):
             known_vars |= set((load_yaml(vf) or {}).keys())
     has_macros = any(plugin_conf(c, "macros") is not None for _, c in configs.values())
+    return known_vars, has_macros
 
+
+def snippet_bases(repo, configs, cfg_root):
+    """Folders that pymdownx.snippets resolves --8<-- paths against."""
     snip_bases = [cfg_root]
     for _, c in configs.values():
         sc = md_ext_conf(c, "pymdownx.snippets")
@@ -316,8 +330,11 @@ def main(argv=None):
             bp = sc["base_path"]
             snip_bases += [cfg_root / b for b in (bp if isinstance(bp, list) else [bp])
                            if safeio.inside(cfg_root / str(b), repo)]
+    return snip_bases
 
-    # nav
+
+def build_nav(repo, configs, docs_dir):
+    """(rows for nav.csv, {config name: {page path: nav entry}}). Entries outside repo are never probed."""
     nav_rows, nav_sets = [], {}
     for name, (_cp, c) in configs.items():
         entries = walk_nav(c.get("nav"))
@@ -332,6 +349,59 @@ def main(argv=None):
                              "external": external, "exists": exists})
             if path and not external:
                 nav_sets[name][path] = e
+    return nav_rows, nav_sets
+
+
+# ---------- output ----------
+def write_csv(out, name, rows, fields=None):
+    fields = fields or (list(rows[0].keys()) if rows else ["empty"])
+    with open(out / name, "w", newline="", encoding="utf-8") as f:
+        w = safeio.DictWriter(f, fieldnames=fields, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
+
+
+def write_outputs(out, pages, nav_rows, link_rows, dups, summary):
+    """pages.csv, nav.csv, links.csv, duplicates.csv and summary.json."""
+    write_csv(out, "pages.csv", pages)
+    write_csv(out, "nav.csv", nav_rows, ["config", "order", "depth", "section", "title", "path", "is_section", "external", "exists"])
+    write_csv(out, "links.csv", link_rows, ["page", "kind", "target", "scope", "status"])
+    write_csv(out, "duplicates.csv", [{"group": h, "page": pg, "excerpt": ex} for h, v in dups for pg, ex in v],
+              ["group", "page", "excerpt"])
+    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+
+
+def summary_markdown(repo_name, summary, bulk_commit_files, min_dup_words):
+    """Lines of summary.md: the headline numbers, then nav issues per config and nav drift."""
+    s = summary
+    md = [f"# Inventory: {repo_name}", "",
+          f"- docs_dir: `{s['docs_dir']}`; configs: {', '.join(s['configs']) or 'none (plain Markdown)'}",
+          f"- pages: {s['pages']}; words: {s['words_total']}",
+          f"- type mix (heuristic): {s['type_mix_guess']}",
+          f"- git: median age {s['age_days']['median']} d, >365 d: {s['age_days']['over_365']}"
+          + f"; {s['bulk_commits_ignored_for_age']} bulk commits (>{bulk_commit_files} files) ignored"
+          + (" (SHALLOW CLONE: ages/commit counts are lower bounds)" if s['git_shallow'] else ""),
+          f"- orphans (not in any nav): {len(s['orphans_not_in_any_nav'])}",
+          f"- broken internal links/snippets: {len(s['broken_internal'])}",
+          f"- pages with undefined variables: {len(s['undefined_variables'])}",
+          f"- duplicate paragraph groups (>= {min_dup_words} words): {s['duplicate_paragraph_groups']}", ""]
+    for name, pc in s["per_config"].items():
+        md.append(f"## {name}: {pc['nav_pages']} nav pages, max depth {pc['max_depth']}, "
+                  f"{len(pc['nav_missing_files'])} missing files, {len(pc['dup_nav_entries'])} duplicate entries")
+        for m in pc["nav_missing_files"]: md.append(f"- missing: `{m}`")
+    for k, d in s["nav_drift"].items():
+        md.append(f"## Nav drift: {k}")
+        md.append(f"- only in first: {len(d['only_in_first'])}; only in second: {len(d['only_in_second'])}")
+    return md
+
+
+# ---------- main ----------
+def main(argv=None):
+    a = parse_args(argv)
+    repo = Path(a.repo).resolve()
+    configs = load_configs(repo, a.config)
+    docs_dir, cfg_root, site_url, dir_urls = locate_docs(repo, configs, a.docs_dir)
+    known_vars, has_macros = known_variables(repo, configs, cfg_root)
+    snip_bases = snippet_bases(repo, configs, cfg_root)
+    nav_rows, nav_sets = build_nav(repo, configs, docs_dir)
 
     # pages
     md_files = safeio.rglob(docs_dir, "*.md")
@@ -493,35 +563,8 @@ def main(argv=None):
     }
 
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
-    def wcsv(name, rows, fields=None):
-        fields = fields or (list(rows[0].keys()) if rows else ["empty"])
-        with open(out / name, "w", newline="", encoding="utf-8") as f:
-            w = safeio.DictWriter(f, fieldnames=fields, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
-    wcsv("pages.csv", pages)
-    wcsv("nav.csv", nav_rows, ["config", "order", "depth", "section", "title", "path", "is_section", "external", "exists"])
-    wcsv("links.csv", link_rows, ["page", "kind", "target", "scope", "status"])
-    wcsv("duplicates.csv", [{"group": h, "page": pg, "excerpt": ex} for h, v in dups for pg, ex in v],
-         ["group", "page", "excerpt"])
-    (out / "summary.json").write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
-
-    md = [f"# Inventory: {repo.name}", "",
-          f"- docs_dir: `{summary['docs_dir']}`; configs: {', '.join(summary['configs']) or 'none (plain Markdown)'}",
-          f"- pages: {summary['pages']}; words: {summary['words_total']}",
-          f"- type mix (heuristic): {summary['type_mix_guess']}",
-          f"- git: median age {summary['age_days']['median']} d, >365 d: {summary['age_days']['over_365']}"
-          + f"; {bulk_skipped} bulk commits (>{a.bulk_commit_files} files) ignored"
-          + (" (SHALLOW CLONE: ages/commit counts are lower bounds)" if shallow else ""),
-          f"- orphans (not in any nav): {len(orphans)}",
-          f"- broken internal links/snippets: {len(summary['broken_internal'])}",
-          f"- pages with undefined variables: {len(summary['undefined_variables'])}",
-          f"- duplicate paragraph groups (>= {a.min_dup_words} words): {len(dups)}", ""]
-    for name, pc in per_config.items():
-        md.append(f"## {name}: {pc['nav_pages']} nav pages, max depth {pc['max_depth']}, "
-                  f"{len(pc['nav_missing_files'])} missing files, {len(pc['dup_nav_entries'])} duplicate entries")
-        for m in pc["nav_missing_files"]: md.append(f"- missing: `{m}`")
-    for k, d in nav_drift.items():
-        md.append(f"## Nav drift: {k}")
-        md.append(f"- only in first: {len(d['only_in_first'])}; only in second: {len(d['only_in_second'])}")
+    write_outputs(out, pages, nav_rows, link_rows, dups, summary)
+    md = summary_markdown(repo.name, summary, a.bulk_commit_files, a.min_dup_words)
     (out / "summary.md").write_text("\n".join(md) + "\n", encoding="utf-8")
     print("\n".join(md))
     print(f"\nwrote {out}/: pages.csv nav.csv links.csv duplicates.csv summary.json summary.md")
