@@ -45,6 +45,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import mdparse
 import safeio
 
 try:
@@ -52,8 +53,6 @@ try:
 except ImportError:  # pragma: no cover
     yaml = None
 
-FENCE = re.compile(r"^\s*(```|~~~)")
-H1 = re.compile(r"^#\s+(.+?)\s*#*\s*$")
 SEPARATORS = (" - ", " – ", " — ", ": ", " | ")  # noqa: RUF001 - en dash is a real title separator
 SEVERITY = {
     "missing_title": "error", "duplicate_title": "error",
@@ -86,16 +85,7 @@ def front_matter(text):
 
 
 def h1s(body):
-    out, infence = [], False
-    for line in body.splitlines():
-        if FENCE.match(line):
-            infence = not infence
-            continue
-        if not infence:
-            m = H1.match(line)
-            if m:
-                out.append(m.group(1))
-    return out
+    return [t for level, t in mdparse.headings(body) if level == 1 and t]
 
 
 def norm(s):

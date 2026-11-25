@@ -20,6 +20,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import mdparse
 import safeio
 
 try:
@@ -112,8 +113,6 @@ def walk_nav(nav, section=(), depth=1, out=None):
     return out
 
 # ---------- markdown parsing ----------
-FENCE = re.compile(r"^\s*(```|~~~)")
-H = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 LINK = re.compile(r"(!?)\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 REFDEF = re.compile(r"^\s*\[([^\]]+)\]:\s*(\S+)")
 SNIP = re.compile(r"""--8<--\s+["']([^"']+)["']""")
@@ -142,22 +141,17 @@ def split_front_matter(text):
 
 def parse_page(text):
     fm, body = split_front_matter(text)
-    lines = body.splitlines()
-    in_code = False
     prose, headings, code_blocks = [], [], 0
     admons, ol_items, table_rows = 0, 0, 0
-    for ln in lines:
-        if FENCE.match(ln):
-            in_code = not in_code
-            if in_code:
-                code_blocks += 1
-            continue
-        if in_code:
+    for kind, ln in mdparse.scan(body):
+        if kind == "open":
+            code_blocks += 1
+        if kind != "text":
             continue
         prose.append(ln)
-        m = H.match(ln)
-        if m:
-            headings.append((len(m.group(1)), m.group(2)))
+        h = mdparse.heading(ln)
+        if h:
+            headings.append(h)
         if ADMON.match(ln):
             admons += 1
         if OL.match(ln):

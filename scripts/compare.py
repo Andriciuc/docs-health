@@ -31,6 +31,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import mdparse  # noqa: E402
 import safeio  # noqa: E402
 GH = re.compile(r"^(?:https?://github\.com/)?([\w.-]+)/([\w.-]+?)(?:\.git)?(?:/tree/(.+?))?/?$")
 
@@ -142,15 +143,7 @@ def rcsv(p):
     return safeio.read_csv(p)
 
 def headings(text):
-    out, code = [], False
-    for ln in text.splitlines():
-        if re.match(r"^\s*(```|~~~)", ln):
-            code = not code
-        elif not code:
-            m = re.match(r"^(#{1,6})\s+(.*?)\s*#*\s*$", ln)
-            if m:
-                out.append(m.group(2).strip())
-    return out
+    return [t.strip() for _, t in mdparse.headings(text)]
 
 def norm_text(t):
     """Front matter stripped; one entry per non-blank line, whitespace-normalized (line-level diff is fast)."""
