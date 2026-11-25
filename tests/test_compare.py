@@ -57,5 +57,20 @@ class CompareTest(unittest.TestCase):
             compare.parse("owner/repo@-x")
 
 
+class RenameSameTitleTest(unittest.TestCase):
+    def test_same_title_picks_closest_text(self):
+        base = Path(tempfile.mkdtemp())
+        body = "Install the package, then start the service and check the logs for errors.\n" * 5
+        fixture_repo.write(base / "a", {"docs/old/setup.md": "# Setup\n\n" + body})
+        fixture_repo.write(base / "b", {"docs/a/setup.md": "# Setup\n\nSomething else entirely.\n",
+                                        "docs/z/setup.md": "# Setup\n\n" + body})
+        out = base / "out"
+        with redirect_stdout(StringIO()):
+            compare.main([str(base / "a"), str(base / "b"), "--out", str(out), "--work", str(base / "work"),
+                          "--", "--docs-dir", "docs"])
+        renamed = [(r["path_a"], r["path_b"]) for r in rows(out / "pages_compare.csv") if r["status"] == "renamed"]
+        self.assertEqual(renamed, [("old/setup.md", "z/setup.md")])
+
+
 if __name__ == "__main__":
     unittest.main()

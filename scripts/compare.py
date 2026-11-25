@@ -241,11 +241,14 @@ def main(argv=None):
             continue  # a new release's notes are not a rename of an old one
         best, score = None, 0.0
         ta = norm_text(txt(da, p))
-        for q in only_b:
-            if q in used_b or PB[q].get("type_guess") == "release-notes":
-                continue
-            if PA[p]["title"] and PA[p]["title"] == PB[q]["title"]:
-                best, score = q, max(score, 0.99); break
+        free = [q for q in only_b if q not in used_b and PB[q].get("type_guess") != "release-notes"]
+        # Same title wins, but several pages can share a title ("Overview"): take the closest text among them.
+        same_title = [q for q in free if PA[p]["title"] and PA[p]["title"] == PB[q]["title"]]
+        if same_title:
+            best = max(same_title, key=lambda q: difflib.SequenceMatcher(None, ta, cache_b[q], autojunk=False).ratio())
+            score = 0.99
+            free = []
+        for q in free:
             sm = difflib.SequenceMatcher(None, ta, cache_b[q], autojunk=False)
             if sm.real_quick_ratio() < a.similarity or sm.quick_ratio() < a.similarity:
                 continue
