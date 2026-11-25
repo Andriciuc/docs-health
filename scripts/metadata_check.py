@@ -63,13 +63,16 @@ SEVERITY = {
 }
 
 
+# Same rule as MkDocs (mkdocs/utils/meta.py): "---" on the first line, closed by a line that is
+# exactly "---" or "..." (trailing spaces allowed). A "----" rule or "---x" line doesn't close it.
+FRONT_MATTER = re.compile(r"\A-{3}[ \t]*\n(.*?\n)?(?:\.{3}|-{3})[ \t]*(?:\n|\Z)", re.S)
+
+
 def front_matter(text):
-    if not text.startswith("---"):
+    m = FRONT_MATTER.match(text)
+    if not m:
         return {}, text
-    end = text.find("\n---", 3)
-    if end < 0:
-        return {}, text
-    raw, body = text[3:end], text[end + 4:]
+    raw, body = m.group(1) or "", text[m.end():]
     if yaml:
         try:
             data = yaml.safe_load(raw) or {}
