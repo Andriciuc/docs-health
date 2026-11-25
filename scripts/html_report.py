@@ -220,16 +220,20 @@ def build(dirs, title, max_rows):
             % (html.escape(title), CSS, html.escape(title), meta, "".join(nav), "\n".join(main), JS))
 
 
-if __name__ == "__main__":
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("dirs", nargs="+")
     ap.add_argument("--out", help="default: <first dir>/report.html")
     ap.add_argument("--title", default="Docs health report")
     ap.add_argument("--max-rows", type=int, default=5000)
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     for d in a.dirs:
         if not Path(d).is_dir():
             sys.exit("not a directory: %s" % d)
     out = Path(a.out) if a.out else Path(a.dirs[0]) / "report.html"
     out.write_text(build(a.dirs, a.title, a.max_rows), encoding="utf-8")
     sys.stderr.write("wrote %s\n" % out)
+
+
+if __name__ == "__main__":
+    main()

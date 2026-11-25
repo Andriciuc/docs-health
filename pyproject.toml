@@ -1,0 +1,36 @@
+# Lets the scripts be installed as commands: pip install . (or pipx install git+https://github.com/Andriciuc/docs-health)
+# The files stay where they are, so the skill and the workflows keep calling scripts/*.py directly.
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docs-health"
+version = "1.0.4"
+description = "Health checks for docs-as-code sets: inventory, comparisons, docs-vs-code coverage and metadata."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6"]
+
+[project.urls]
+Documentation = "https://andriciuc.github.io/docs-health/"
+Source = "https://github.com/Andriciuc/docs-health"
+
+[project.scripts]
+docs-health-inventory = "docs_health.inventory:main"
+docs-health-compare = "docs_health.compare:main"
+docs-health-coverage = "docs_health.profile_coverage:main"
+docs-health-items-coverage = "docs_health.docs_coverage:main"
+docs-health-metadata = "docs_health.metadata_check:main"
+docs-health-report = "docs_health.html_report:main"
+docs-health-analytics = "docs_health.join_analytics:main"
+
+[tool.setuptools]
+# Map the existing folders into one package instead of moving them.
+package-dir = { "docs_health" = "scripts", "docs_health.checks" = "scripts/checks", "docs_health.profiles" = "profiles" }
+packages = ["docs_health", "docs_health.checks", "docs_health.profiles"]
+
+[tool.setuptools.package-data]
+"docs_health.profiles" = ["*.yml"]

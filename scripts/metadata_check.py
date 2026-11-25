@@ -200,7 +200,7 @@ def write(pages, prefixes, out, root, prefix_min):
     (out / "metadata_summary.md").write_text("\n".join(md) + "\n", encoding="utf-8")
 
 
-if __name__ == "__main__":
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("root")
     ap.add_argument("--glob", action="append", default=[], help="pages to check (default **/*.md)")
@@ -214,10 +214,14 @@ if __name__ == "__main__":
     ap.add_argument("--short-title-words", type=int, default=1)
     ap.add_argument("--title-template", default="{title}",
                     help="how the site renders <title>, e.g. 'Valkey Documentation · {title}'")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     pages, prefixes = run(a.root, a.glob or ["**/*.md"], a.title_key, a.desc_key,
                           a.title_max, a.desc_min, a.desc_max, a.prefix_min,
                           a.short_title_words, a.title_template)
     write(pages, prefixes, a.out, a.root, a.prefix_min)
     c = Counter(p["worst"] for p in pages)
     sys.stderr.write(f"{len(pages)} pages: {c.get('error', 0)} with errors, {c.get('warn', 0)} with warnings; wrote {a.out}/\n")
+
+
+if __name__ == "__main__":
+    main()

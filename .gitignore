@@ -2,3 +2,6 @@
 .coverage
 __pycache__/
 site/
+build/
+*.egg-info/
+dist/

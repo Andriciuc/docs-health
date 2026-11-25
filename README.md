@@ -26,6 +26,16 @@ python scripts/profile_coverage.py valkey --code ../valkey --docs ../valkey-doc 
 python scripts/html_report.py cov          # cov/report.html
 ```
 
+**As commands** (optional; the scripts above work without installing anything):
+
+```bash
+pipx install git+https://github.com/Andriciuc/docs-health.git
+docs-health-coverage valkey --code ../valkey --docs ../valkey-doc --out cov
+docs-health-report cov
+```
+
+Commands: `docs-health-inventory`, `-compare`, `-coverage`, `-items-coverage`, `-metadata`, `-report`, `-analytics`.
+
 **As a GitHub workflow** (monthly, your own pairs): see [GitHub workflows](https://andriciuc.github.io/docs-health/workflows/).
 
 ## Documentation

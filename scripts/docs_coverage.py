@@ -205,7 +205,7 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
     return rows, orphans
 
 
-if __name__ == "__main__":
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("items", nargs="+")
     ap.add_argument("--docs", required=True)
@@ -214,7 +214,11 @@ if __name__ == "__main__":
     ap.add_argument("--ignore-glob", action="append", default=[], help="orphan pages whose source wasn't extracted")
     ap.add_argument("--mention-glob", action="append", default=[], help="pages searched for mentions, e.g. topics/*.md")
     ap.add_argument("--exclude-glob", action="append", default=[], help="pages never searched, e.g. generated references")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     rows, orphans = run(read_items(a.items), a.docs, a.out, a.page_glob, a.ignore_glob, a.mention_glob, a.exclude_glob)
     c = Counter(r["status"] for r in rows)
     sys.stderr.write(f"{len(rows)} items: {dict(c)}; orphan pages: {len(orphans)}\nwrote {a.out}/\n")
+
+
+if __name__ == "__main__":
+    main()

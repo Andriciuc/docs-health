@@ -28,6 +28,8 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent
+# profiles/ sits next to scripts/ in a checkout, and inside the package (docs_health/profiles) when installed.
+PROFILES = next((d for d in (HERE.parent / "profiles", HERE / "profiles") if d.is_dir()), HERE.parent / "profiles")
 sys.path[:0] = [str(HERE), str(HERE / "checks")]
 import docs_coverage  # noqa: E402
 import safeio  # noqa: E402
@@ -51,9 +53,9 @@ def resolve_profile(spec):
         if not p.is_file():
             raise ProfileError(f"profile not found: {spec}")
         return p
-    built_in = HERE.parent / "profiles" / f"{spec}.yml"
+    built_in = PROFILES / f"{spec}.yml"
     if not re.fullmatch(r"[A-Za-z0-9_-]+", spec) or not built_in.is_file():
-        names = sorted(x.stem for x in (HERE.parent / "profiles").glob("*.yml"))
+        names = sorted(x.stem for x in PROFILES.glob("*.yml"))
         raise ProfileError(f"unknown built-in profile {spec!r} (available: {', '.join(names) or 'none'})")
     return built_in
 
@@ -305,14 +307,14 @@ def run(profile_spec, code, docs, out):
     return profile, items, rows, orphans
 
 
-if __name__ == "__main__":
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("profile")
     ap.add_argument("--code")
     ap.add_argument("--docs")
     ap.add_argument("--out", default="docs-coverage")
     ap.add_argument("--print-sparse", action="store_true", help="print the code paths to check out, one per line")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     try:
         if a.print_sparse:
             prof = load_profile(resolve_profile(a.profile))
@@ -329,3 +331,7 @@ if __name__ == "__main__":
     from collections import Counter
     sys.stderr.write(f"profile {prof.get('name', a.profile)}: {len(items)} items "
                      f"{dict(Counter(r['status'] for r in rows))}; orphan pages: {len(orphans)}; wrote {a.out}/\n")
+
+
+if __name__ == "__main__":
+    main()
