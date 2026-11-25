@@ -48,10 +48,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import mdparse
 import safeio
-
-HEADING = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
-FENCE = re.compile(r"^\s*(```|~~~)")
 
 
 def read_items(paths):
@@ -71,19 +69,17 @@ def page_index(root, globs, exclude):
                 continue
             text = safeio.read_text(f)
             heads, spans = [], set()
-            infence = False
-            for line in text.splitlines():
-                if FENCE.match(line):
-                    infence = not infence
+            for kind, line in mdparse.scan(text):
+                if kind in ("open", "close"):
                     continue
-                if infence:
+                if kind == "code":
                     w = " ".join(line.split()).lower()
                     if w:
                         spans.add(w)
                     continue
-                m = HEADING.match(line)
-                if m:
-                    heads.append(m.group(1))
+                h = mdparse.heading(line)
+                if h:
+                    heads.append(h[1])
                 for t in re.findall(r"`([^`\n]+)`", line):
                     spans.add(" ".join(t.split()).lower())
                 for t in re.findall(r"\*\*([^*\n]+)\*\*", line):  # **SENTINEL MASTERS** style lists
@@ -102,16 +98,7 @@ def mentioned(names, spans):
 
 
 def has_heading(path, want):
-    text = safeio.read_text(path)
-    infence = False
-    for line in text.splitlines():
-        if FENCE.match(line):
-            infence = not infence
-            continue
-        m = None if infence else HEADING.match(line)
-        if m and m.group(1).lower().startswith(want.lower()):
-            return True
-    return False
+    return any(t.lower().startswith(want.lower()) for _, t in mdparse.headings(safeio.read_text(path)))
 
 
 def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs, adjust=None):
