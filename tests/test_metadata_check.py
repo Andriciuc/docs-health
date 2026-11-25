@@ -16,6 +16,15 @@ class MetadataCheckTest(unittest.TestCase):
         cls.p = {Path(x["path"]).stem: x for x in pages}
         cls.issues = {k: set(filter(None, v["issues"].split(";"))) for k, v in cls.p.items()}
 
+    def test_front_matter_delimiters(self):
+        fm, body = mc.front_matter("---\ntitle: T\n...\n# H\n")      # "..." closes, as in MkDocs
+        self.assertEqual((fm, body), ({"title": "T"}, "# H\n"))
+        fm, body = mc.front_matter("---\ntitle: T\n----\n# H\n")     # "----" does not close
+        self.assertEqual(fm, {})
+        fm, body = mc.front_matter("---\ntitle: T\n---extra\n---\n# H\n")
+        self.assertEqual(body, "# H\n")
+        self.assertEqual(mc.front_matter("---\n---\n# H\n"), ({}, "# H\n"))
+
     def test_clean_page(self):
         self.assertEqual(self.issues["good"], set())       # H1 inside a code fence is ignored
 
