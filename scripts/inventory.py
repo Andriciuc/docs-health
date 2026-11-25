@@ -16,7 +16,7 @@ Writes to --out (default ./docs-inventory):
 Stdlib + PyYAML only. Read-only on the repo.
 """
 import argparse, fnmatch, hashlib, json, os, re, subprocess, sys, time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -449,13 +449,13 @@ def main(argv=None):
                      and not r["used_as_snippet"] and not r["path"].startswith(("snippets/", "_", "templates/")))
     per_config = {}
     for name, s in nav_sets.items():
+        nav_count = Counter(r["path"] for r in nav_rows if r["config"] == name and r["path"])
         per_config[name] = {
             "nav_pages": len(s),
             "nav_missing_files": sorted(p for p in s if p not in all_rel),
             "pages_not_in_this_nav": len([r for r in pages if r["path"] not in s]),
             "max_depth": max([e["depth"] for e in s.values()] or [0]),
-            "dup_nav_entries": sorted({r["path"] for r in nav_rows if r["config"] == name and r["path"]
-                                      and sum(1 for x in nav_rows if x["config"] == name and x["path"] == r["path"]) > 1}),
+            "dup_nav_entries": sorted(p for p, n in nav_count.items() if n > 1),
         }
     nav_drift = {}
     names = list(nav_sets)
