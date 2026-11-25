@@ -217,8 +217,10 @@ def git_history(repo, subdir, bulk=30, skip_subject=None):
         shallow = subprocess.run(["git", "-C", str(repo), "rev-parse", "--is-shallow-repository"],
                                  capture_output=True, text=True, check=False, env=safeio.GIT_ENV,
                                  timeout=safeio.GIT_TIMEOUT).stdout.strip() == "true"
-        out = subprocess.run(["git", "-C", str(repo), "log", "--format=__C__%ct %s", "--name-only",
-                              "--", str(subdir)], capture_output=True, text=True, check=True,
+        # core.quotepath=off: otherwise git prints non-ASCII paths as "caf\303\251.md" and they never match.
+        # Decode as UTF-8 explicitly: text=True alone uses the locale code page (cp1252 on Windows).
+        out = subprocess.run(["git", "-C", str(repo), "-c", "core.quotepath=off", "log", "--format=__C__%ct %s", "--name-only",
+                              "--", str(subdir)], capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
                              env=safeio.GIT_ENV, timeout=safeio.GIT_TIMEOUT).stdout
     except (OSError, subprocess.SubprocessError):
         return {}, {}, None, 0
