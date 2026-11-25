@@ -27,7 +27,7 @@ jobs:
         run: pip-audit --progress-spinner off -r requirements-ci.txt -r requirements-docs.txt
       - name: Tests with coverage (fails below 80%)
         run: |
-          python -m coverage run --source=scripts -m unittest discover -s tests -v
+          python -m coverage run --source=scripts -m pytest tests -v -ra
           python -m coverage report --fail-under=80
 
   docs-site:
