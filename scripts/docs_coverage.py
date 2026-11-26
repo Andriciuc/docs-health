@@ -97,6 +97,22 @@ def mentioned(names, spans):
     return False
 
 
+def mention_index(pages):
+    """span word-prefix -> pages, so a lookup replaces the scan in mentioned().
+
+    A span "sentinel master <name>" adds "sentinel", "sentinel master" and the whole span:
+    exactly the names for which mentioned() is true (equal, or a prefix followed by a space).
+    """
+    index = defaultdict(set)
+    for page, (_, spans) in pages.items():
+        for sp in spans:
+            prefix = None
+            for word in sp.split(" "):
+                prefix = word if prefix is None else prefix + " " + word
+                index[prefix].add(page)
+    return index
+
+
 def has_heading(path, want):
     return any(t.lower().startswith(want.lower()) for _, t in mdparse.headings(safeio.read_text(path)))
 
@@ -105,6 +121,7 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
     docs, out = Path(docs), Path(out)
     out.mkdir(parents=True, exist_ok=True)
     pages = page_index(docs, mention_globs, exclude_globs) if mention_globs else {}
+    index, order = mention_index(pages), {p: i for i, p in enumerate(pages)}
     ids_by_kind = defaultdict(set)
     rows = []
     for it in items:
@@ -113,7 +130,7 @@ def run(items, docs, out, page_globs, ignore_globs, mention_globs, exclude_globs
         names = {iid.lower(), " ".join((it.get("name") or "").split()).lower()} - {""}
         names |= {a.lower() for a in (it.get("aliases") or "").split(";") if a}
         own = it.get("expected_page", "")
-        hits = [p for p, (_, spans) in pages.items() if p != own and mentioned(names, spans)]
+        hits = sorted({p for n in names for p in index.get(n, ())} - {own}, key=order.__getitem__)
         exp, req = it.get("expected_page", ""), it.get("require_heading", "")
         detail = ""
         if it.get("skip_reason"):

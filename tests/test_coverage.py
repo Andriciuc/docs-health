@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIX = Path(__file__).resolve().parent / "fixtures"
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "scripts" / "extract"), str(ROOT / "scripts" / "checks")]
 
+import docs_coverage
 import profile_coverage as pc
 import valkey_nav
 
@@ -71,6 +72,15 @@ class CoverageTest(unittest.TestCase):
         self.assertEqual(nav["oldmaster"]["status"], "skipped")  # no page
         summary = (out / "nav_summary.md").read_text(encoding="utf-8")
         self.assertIn("'newgroup'", summary)  # missing from groups.json
+
+
+class MentionIndexTest(unittest.TestCase):
+    def test_index_matches_mentioned(self):
+        pages = {"a.md": ([], {"sentinel master <name>", "maxmemory 2mb"}), "b.md": ([], {"sentinel", "port"})}
+        index = docs_coverage.mention_index(pages)
+        for name in ("sentinel", "sentinel master", "sentinel master <name>", "maxmemory", "max", "master", "port"):
+            expected = {p for p, (_, spans) in pages.items() if docs_coverage.mentioned({name}, spans)}
+            self.assertEqual(index.get(name, set()), expected, name)
 
 
 if __name__ == "__main__":
