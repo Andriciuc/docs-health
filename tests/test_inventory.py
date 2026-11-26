@@ -74,5 +74,14 @@ class InventoryTest(unittest.TestCase):
         self.assertFalse(any(k.startswith("nav:") for k in pages["index.md"]))
 
 
+class RootRelativeLinkTest(unittest.TestCase):
+    def test_root_relative_link_resolves_against_docs_dir(self):
+        repo = Path(tempfile.mkdtemp())
+        fixture_repo.write(repo, {"docs/index.md": "# Home\n\n[b](/sub/b.md) and [gone](/sub/nope.md)\n",
+                                  "docs/sub/b.md": "# B\n"})
+        _, _, summary = run(repo, "--docs-dir", "docs")
+        self.assertEqual([b["target"] for b in summary["broken_internal"]], ["/sub/nope.md"])
+
+
 if __name__ == "__main__":
     unittest.main()
